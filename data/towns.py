@@ -85,3 +85,4 @@ ville['roeselare']['lat'] = 50.9406272
 ville['roeselare']['lng'] = 3.0499447
 ville['roeselare']['pop'] = 59147
 ville['roeselare']['superficie'] = 59,79
+
