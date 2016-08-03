@@ -129,8 +129,8 @@ class Towns:
     ville["verviers"]["superficie"] = 33.1
 
     ville['mouscron'] = {}
-    ville['mouscron']["lat"] = 50.591056
-    ville["mouscron"]["lng"] = 5.865595
+    ville['mouscron']["lat"] = 50.7379476
+    ville["mouscron"]["lng"] = 3.1829996
     ville["mouscron"]["pop"] = 52639
     ville["mouscron"]["superficie"] = 40.1
 
