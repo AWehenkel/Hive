@@ -1,4 +1,4 @@
-import MySQLdb
+import pymysql
 import googlemaps
 import json
 from pprint import pprint
@@ -6,10 +6,10 @@ import gmplot
 from xlrd import open_workbook
 
 # Connect to google map API
-gmaps = googlemaps.Client(key='AIzaSyD3_6utmMWtQ8gqcE6-aL5BmVsBvmi4aNM')
+gmaps = googlemaps.Client(key='AIzaSyBj7JAQHEc-eFQkfuCXBba0dItAUPL0fMI')
 
 # Open database connection
-db = MySQLdb.connect("localhost","root","videogame2809","hive" )
+db = pymysql.connect("localhost","root","","hive")
 
 fn = 'pv_puiss2.xlsx'
 data = open_workbook('data/' + fn)
