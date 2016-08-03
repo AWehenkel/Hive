@@ -3,6 +3,7 @@ import googlemaps
 import math
 import random
 
+#Generates a number of random gps points
 def genRandomLocation(lat, lng, dist, number):
     lat = lat/180 * math.pi
     lng = lng/180 * math.pi
@@ -21,6 +22,9 @@ def genRandomLocation(lat, lng, dist, number):
         brg = 2*math.pi*r2
         r_lat = math.asin(math.sin(lat)*math.cos(rand_dist) + math.cos(lat)*math.sin(rand_dist)*math.cos(brg))
         r_lon = lng + math.atan2(math.sin(brg)*math.sin(rand_dist)*math.cos(lat), math.cos(rand_dist)-math.sin(lat)*math.sin(lat))
+        if (r_lon < -math.pi):
+            r_lon += 2*math.pi
+
         result.append(str(r_lat * 180/math.pi) + ", " + str(r_lon * 180/math.pi))
 
     return result
@@ -32,7 +36,14 @@ ville = {}
 ville['liege'] = {}
 ville['liege']["lat"] = 50.586133
 ville["liege"]["lng"] = 5.560259
-ville["liege"]["number"] = 3500
+ville["liege"]["number"] = 2500
+ville["liege"]["dist_max"] = 40
+
+ville['bxl'] = {}
+ville['bxl']["lat"] = 50.586133
+ville["bxl"]["lng"] = 5.560259
+ville["bxl"]["number"] = 4500
+ville["liege"]["dist_max"] = 40
 
 print genRandomLocation(50.586133, 5.560259, 20, 20)
 
