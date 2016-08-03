@@ -1,0 +1,5 @@
+import gurobipy
+
+test = gurobipy.read('/Library/gurobi652/mac64/examples/data/coins.lp')
+test.optimize()
+test.printAttr('x')
