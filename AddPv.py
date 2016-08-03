@@ -16,7 +16,7 @@ data = open_workbook('data/' + fn)
 
 s = data.sheet_by_index(0)
 print s.nrows
-for i in range(2, s.nrows//300):
+for i in range(6, s.nrows//300):
     request = 'INSERT INTO pv (position, power) VALUES '
     print i
     raw_input("pause")

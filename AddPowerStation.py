@@ -1,9 +1,5 @@
 import MySQLdb
 import googlemaps
-import json
-from pprint import pprint
-import gmplot
-from xlrd import open_workbook
 
 # inserts into the db a new station
 def insertStation(db, type, power, address):
