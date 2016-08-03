@@ -2,6 +2,7 @@ import MySQLdb
 import googlemaps
 import math
 import random
+from data import Towns
 
 #Generates a number of random gps points
 def genRandomLocation(lat, lng, dist, number):
@@ -11,13 +12,11 @@ def genRandomLocation(lat, lng, dist, number):
     random.seed()
     #Convert dist to radian
     dist = dist/rad_earth
-    print dist
 
     result = []
     for i in range(0, number):
         r1 = random.random()
         r2 = random.random()
-        print r1, r2
         rand_dist = math.acos(r1*(math.cos(dist) - 1) + 1)
         brg = 2*math.pi*r2
         r_lat = math.asin(math.sin(lat)*math.cos(rand_dist) + math.cos(lat)*math.sin(rand_dist)*math.cos(brg))
@@ -29,23 +28,34 @@ def genRandomLocation(lat, lng, dist, number):
 
     return result
 
+# Open database connection
+db = MySQLdb.connect("localhost","root","videogame2809","hive" )
 
+towns = Towns.Towns(1)
+pos = []
+capa = 25, 30, 60, 80
+consom = 18
+request = 'INSERT INTO vehicles (capacity, consumption, position, charge, home) VALUES '
+for town in towns.ville.values():
+    capacity = 60
+    consom = 18
+    charge = 50
+    pos = genRandomLocation(town["lat"],town["lng"], town["radius"], town["nb_cars"])
+    for i in pos:
+        request += "(" + str(capacity) + "," + str(consom) + ",'" + i + "'," + str(charge) + ",'" + i +"'),"
 
-ville = {}
+cur = db.cursor()
+request = request[0:request.__len__() - 1]
+try:
+    # Execute the SQL command
+    cur.execute(request)
+    # Commit your changes in the database
+    db.commit()
+    print "donnees enregistrees. \n"
+except:
+    # Rollback in case there is any error
+    db.rollback()
 
-ville['liege'] = {}
-ville['liege']["lat"] = 50.586133
-ville["liege"]["lng"] = 5.560259
-ville["liege"]["number"] = 2500
-ville["liege"]["dist_max"] = 40
-
-ville['bxl'] = {}
-ville['bxl']["lat"] = 50.586133
-ville["bxl"]["lng"] = 5.560259
-ville["bxl"]["number"] = 4500
-ville["liege"]["dist_max"] = 40
-
-print genRandomLocation(50.586133, 5.560259, 20, 20)
 
 
 
