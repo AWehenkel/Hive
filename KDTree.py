@@ -5,6 +5,10 @@ import random
 import sklearn
 from sklearn.neighbors import NearestNeighbors
 import numpy as np
+import math
+import MySQLdb
+import pickle
+from sklearn.externals import joblib
 from sklearn.neighbors import DistanceMetric
 from sklearn.neighbors.ball_tree import BallTree
 
@@ -14,6 +18,10 @@ key2 = 'AIzaSyD3_6utmMWtQ8gqcE6-aL5BmVsBvmi4aNM'
 gmaps = googlemaps.Client(key=key2)
 
 class KDTrees:
+
+    def __init__(self, nb_neighbours, leaf_size):
+        self.nbrs = NearestNeighbors(n_neighbors=nb_neighbours, algorithm='ball_tree', metric = 'pyfunc', func = self.twoPointsDistance, leaf_size=leaf_size)
+    # Compute distance in time between two points on the map
     def mapDistance(self, x, y):
         if (len(x) > 2):
             return np.sum((x - y) ** 2)
@@ -34,18 +42,48 @@ class KDTrees:
                 print 'bug'
                 return 1000000000
 
+    # Compute the distance between two points on the map
+    def twoPointsDistance(self, x, y):
+        if (len(x) != 2):
+            return np.sum((x - y) ** 2)
+        lat1 = x[0]
+        long1 = x[1]
+        lat2 = y[0]
+        long2 = y[1]
+        rad_earth = 6371e3  # earth radius in m
 
-    def getNearest(self, points, nb_neighbours, leaf_size):
-        nbrs = NearestNeighbors(n_neighbors=nb_neighbours, algorithm='ball_tree', metric = 'pyfunc', func = self.mapDistance)
-        nbrs.fit(points)
-        print nbrs.kneighbors(points)
+        delta_lat = math.fabs(math.radians(lat2 - lat1))
+        delta_long = math.fabs(math.radians(long2 - long1))
+
+        tmp = math.sin(delta_lat / 2) * math.sin(delta_long / 2)
+        tmp += math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(delta_lat / 2) * math.sin(
+            delta_long / 2)
+
+        rel_dist = 2 * math.atan2(math.sqrt(tmp), math.sqrt(1 - tmp))
+
+        dist = rad_earth * rel_dist
+        return dist
 
 
+    def addPoints(self, points):
+        self.nbrs.fit(points)
 
-t = KDTrees()
-t.mapDistance((50.3551856216, 4.4355738111), (50.2686040185, 4.4299929502))
-points = []
-for i in range(0,50):
-    points.append([50.0 + random.random(), 4 + random.random()])
+    def getNeighbours(self, points):
+        self.nbrs.kneighbors(points)
 
-t.getNearest(points, 3, 5)
+
+# Open database connection
+db = MySQLdb.connect("localhost","root","videogame2809","hive" )
+
+cursor = db.cursor()
+
+request = "SELECT * FROM power_station "
+
+try:
+    results = cursor.execute(request)
+    points = []
+    for row in results:
+        pr
+except:
+    print "error"
+

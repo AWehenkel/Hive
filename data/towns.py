@@ -1,3 +1,6 @@
+import math
+import random
+
 #Datas about belgian towns
 class Towns:
     ville = {}
@@ -134,6 +137,42 @@ class Towns:
     ville["mouscron"]["pop"] = 52639
     ville["mouscron"]["superficie"] = 40.1
 
-    def getNumberOfCars(self, percent):
-        for town in self.ville :
-            self.ville[town]["nb_cars"] = self.ville[town]["pop"] * percent/100
+    def __init__(self, percent):
+        self.__setNumberOfCars(percent)
+        self.__setRadius()
+
+
+    def __setNumberOfCars(self, percent):
+        for town in self.ville.values() :
+            town["nb_cars"] = int(town["pop"] * percent/100)
+
+    def __setRadius(self):
+        for town in self.ville.values() :
+            town["radius"] = (town["superficie"] / math.pi)**.5
+
+    # Generates a number of random gps points
+    def genRandomLocation(self, lat, lng, dist, number):
+        lat = lat / 180 * math.pi
+        lng = lng / 180 * math.pi
+        rad_earth = 6372.796924
+        random.seed()
+        # Convert dist to radian
+        dist = dist / rad_earth
+
+        result = []
+        for i in range(0, number):
+            r1 = random.random()
+            r2 = random.random()
+            rand_dist = math.acos(r1 * (math.cos(dist) - 1) + 1)
+            brg = 2 * math.pi * r2
+            r_lat = math.asin(math.sin(lat) * math.cos(rand_dist) + math.cos(lat) * math.sin(rand_dist) * math.cos(brg))
+            r_lon = lng + math.atan2(math.sin(brg) * math.sin(rand_dist) * math.cos(lat),
+                                     math.cos(rand_dist) - math.sin(lat) * math.sin(lat))
+            if (r_lon < -math.pi):
+                r_lon += 2 * math.pi
+
+            result.append(str(r_lat * 180 / math.pi) + ", " + str(r_lon * 180 / math.pi))
+
+        return result
+
+
