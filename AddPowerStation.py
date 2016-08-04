@@ -1,13 +1,14 @@
-import MySQLdb
+import pymysql
 import googlemaps
 
 # inserts into the db a new station
-def insertStation(db, type, power, address):
+def insertStation(db, type, lat, lng, power):
+
     # prepare a cursor object using cursor() method
     cursor = db.cursor()
     # Prepare SQL query to INSERT a record into the database.
-    sql = "INSERT INTO POWER_STATION(type, power, address) VALUES ('%d', '%d', '%s')" % (
-    type, power, address)
+    sql = "INSERT INTO POWER_STATION(type, lat, lng, power) VALUES ('%d', '%f', '%f', '%f')" % ( \
+        type, lat, lng, power)
 
     try:
         # Execute the SQL command
@@ -19,13 +20,13 @@ def insertStation(db, type, power, address):
         db.rollback()
 
 
-
+"""
 
 # Connect to google map API
-gmaps = googlemaps.Client(key='AIzaSyD3_6utmMWtQ8gqcE6-aL5BmVsBvmi4aNM')
+gmaps = googlemaps.Client(key='AIzaSyBj7JAQHEc-eFQkfuCXBba0dItAUPL0fMI')
 
 # Open database connection
-db = MySQLdb.connect("localhost","root","videogame2809","hive" )
+db = pymysql.connect("localhost","root","","hive" )
 
 loop = 1
 ans = 0
@@ -62,3 +63,5 @@ while loop == 1:
 
 # disconnect from server
 db.close()
+
+"""

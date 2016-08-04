@@ -2,7 +2,7 @@ import googlemaps
 from datetime import datetime
 from sklearn.neighbors import NearestNeighbors
 import numpy as np
-import MySQLdb
+import pymysql
 import random
 
 # Connect to google map API
@@ -47,6 +47,3 @@ lng = 128.383
 points = []
 for i in range(0,5000):
     points.append([lat + random.random(), lng + random.random()])
-
-
-

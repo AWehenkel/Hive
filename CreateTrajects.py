@@ -1,4 +1,4 @@
-import MySQLdb
+import pymysql
 import random
 from data import towns
 
@@ -12,7 +12,7 @@ def genDestination(lat, long, proba, dist_max):
 
 
 # Open database connection
-db = MySQLdb.connect("localhost","root","videogame2809","hive" )
+db = pymysql.connect("localhost","root","videogame2809","hive" )
 
 cursor = db.cursor()
 

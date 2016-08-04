@@ -3,6 +3,13 @@ import pymysql
 from data import towns
 import random
 from data.towns import Towns
+import gmplot
+from AddPowerStation import insertStation
+
+#Determine opening hours for a station
+def openingHours():
+    hours = [int(random.uniform(0,12)), int(random.uniform(13,24))]
+    return hours
 
 #Compute the distance between two points on the map
 def twoPointsDistance(lat1, long1, lat2, long2):
@@ -30,8 +37,7 @@ def weighted_choice(choices):
    for w in choices:
       if upto + w[0] >= r:
          ret = w[1:4]
-         print w[0]
-         del w # delete the row we just chose so that we don't take a second time
+         del choices[choices.index(w)] # delete the row we just chose so that we don't take it a second time
          return ret
       upto += w[0]
    assert False, "Shouldn't get here"
@@ -45,7 +51,7 @@ def getRandomStations (number) :
     db = pymysql.connect("localhost","root","","hive")
 
     # Get the datas about towns
-    towns = Towns().ville
+    towns = Towns(0.1).ville
 
     #Get the pv positions
     request = 'SELECT position, power FROM pv'
@@ -55,6 +61,10 @@ def getRandomStations (number) :
        cursor.execute(request)
        # Fetch all the rows in a list of lists.
        pv_positions = cursor.fetchall()
+
+       #Compute the mean power of all stations. This will be used to compute the weigth of each pv location in
+       # a dispatching strategy for the chargers
+       mean_pow = sum(row[1] for row in pv_positions)/len(pv_positions)
 
        # Assign a weight to each pv location
        pv_number = pv_positions.__len__()
@@ -76,14 +86,14 @@ def getRandomStations (number) :
                   min = tmp
                   closest = town[0]
 
-           # Give a certain weight to the pvs according to their proximity to the center of a city
+           # Give a certain weight to the pvs according to their proximity to the center of a city and to the ratio
+           # between the power of the station and the average power of all station
            rad_closest = math.sqrt(towns[closest]['superficie']*10e6/math.pi)
-           weight = rad_closest/min
-           if weight > 20:
-               weight = 20
+           weight = rad_closest/min * power/mean_pow
+           if weight > 50:
+              weight = 50
            pv_n_weight[cur] = [weight, lat, long, power]
            cur += 1
-
 
        # Choose randomly a certain number
        cur = 0
@@ -96,4 +106,21 @@ def getRandomStations (number) :
     except:
         print ("Error: unable to fetch data")
 
-print getRandomStations(10)
+stations = getRandomStations(3000)
+mymap = gmplot.GoogleMapPlotter(50.8550624, 4.3053506, 8)
+
+cur = 0
+for station in stations:
+    hours = openingHours()
+    mymap.marker(station[0], station[1], title=str(cur), text="Power: " + str(station[2]) + " (kW)"
+                        "<br/>Open from " + str(hours[0]) + " to " + str(hours[1]))
+    cur += 1
+
+mymap.draw('./mymap.html', 'AIzaSyBj7JAQHEc-eFQkfuCXBba0dItAUPL0fMI')
+
+# Insert station in database
+# Open database connection
+#db = pymysql.connect("localhost","root","","hive")
+#for station in stations:
+#    insertStation(db, 0, station[0], station[1], station[2])
+#db.close()
