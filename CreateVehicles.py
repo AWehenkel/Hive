@@ -35,23 +35,26 @@ def create():
         db.rollback()
 
 def printMap():
-    gmaps = googlemaps.Client(key='AIzaSyBj7JAQHEc-eFQkfuCXBba0dItAUPL0fMI')
+    gmaps = googlemaps.Client(key='AIzaSyD0QmwrWQGk3YPqvYv7-iUxdqqK7Zh0MO4')
     gmap = gmplot.GoogleMapPlotter(50.850, 4.350, 16)
     # Open database connection
     db = MySQLdb.connect("localhost", "root", "videogame2809", "hive")
     cursor = db.cursor()
-    request = "SELECT id, home FROM vehicles"
+    request = "SELECT * FROM `destinations` NATURAL JOIN vehicles HAVING id_vehicle = id"
     try:
         cursor.execute(request)
         datas = cursor.fetchall()
         for add in datas:
             rand = random.random()
             if (rand < 0.5):
-                addresse =  add[1].split(',')
+                addresse =  add[2].split(',')
                 lat = float(addresse[0])
                 lng = float(addresse[1])
-                gmap.marker(lat, lng, "ev"+str(add[0]))
-        gmap.draw("data/vehiclesMap.html", 'AIzaSyBj7JAQHEc-eFQkfuCXBba0dItAUPL0fMI')
+                name = "ev"+str(add[0])
+                text = "<h3 style = \"text-align:center;\">"+ name +"</h3>Capacite: " + str(add[6]) + "kWh<br/>Niveau de charge: " + str(add[9]) \
+                       + "%%<br/>Consommation moyenne: " + str(add[7]) +"kW/100km<br/>Position: " + add[2] + "<br/>Destination: " + add[3] + "<br/>"
+                gmap.marker(lat, lng, add[3], name, text)
+        gmap.draw("data/vehiclesMap.html", 'AIzaSyD0QmwrWQGk3YPqvYv7-iUxdqqK7Zh0MO4')
     except:
         print "problem"
 
