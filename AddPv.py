@@ -1,4 +1,4 @@
-import pymysql
+import MySQLdb
 import googlemaps
 import json
 from pprint import pprint
@@ -9,14 +9,14 @@ from xlrd import open_workbook
 gmaps = googlemaps.Client(key='AIzaSyBj7JAQHEc-eFQkfuCXBba0dItAUPL0fMI')
 
 # Open database connection
-db = pymysql.connect("localhost","root","","hive")
+db = MySQLdb.connect("localhost","root","videogame2809","hive")
 
 fn = 'pv_puiss2.xlsx'
 data = open_workbook('data/' + fn)
 
 s = data.sheet_by_index(0)
 print s.nrows
-for i in range(6, s.nrows//300):
+for i in range(14, s.nrows//300):
     request = 'INSERT INTO pv (position, power) VALUES '
     print i
     raw_input("pause")

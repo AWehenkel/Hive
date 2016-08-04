@@ -1,4 +1,4 @@
-import PyMySQL
+import MySQLdb
 import googlemaps
 
 # inserts into the db a new station
@@ -25,7 +25,7 @@ def insertStation(db, type, power, address):
 gmaps = googlemaps.Client(key='AIzaSyD3_6utmMWtQ8gqcE6-aL5BmVsBvmi4aNM')
 
 # Open database connection
-db = PyMySQL.connect("localhost","root","videogame2809","hive" )
+db = MySQLdb.connect("localhost","root","videogame2809","hive" )
 
 loop = 1
 ans = 0
