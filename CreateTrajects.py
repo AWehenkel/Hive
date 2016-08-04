@@ -1,14 +1,14 @@
 import MySQLdb
 import random
-from data import Towns
+from data import towns
 
 def genDestination(lat, long, proba, dist_max):
-    towns = Towns.Towns(1)
+    townss = towns.Towns(0.1)
     if(random.random() < proba):
-        lat = towns.ville["bxl"]["lat"]
-        long = towns.ville["bxl"]["lng"]
+        lat = townss.ville["bxl"]["lat"]
+        long = townss.ville["bxl"]["lng"]
 
-    return towns.genRandomLocation(lat, long, dist_max, 1)
+    return townss.genRandomLocation(lat, long, dist_max, 1)
 
 
 # Open database connection

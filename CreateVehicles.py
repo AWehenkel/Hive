@@ -51,11 +51,11 @@ def printMap():
                 lat = float(addresse[0])
                 lng = float(addresse[1])
                 gmap.marker(lat, lng, "ev"+str(add[0]))
-        gmap.draw("mymap.html", 'AIzaSyBj7JAQHEc-eFQkfuCXBba0dItAUPL0fMI')
+        gmap.draw("data/vehiclesMap.html", 'AIzaSyBj7JAQHEc-eFQkfuCXBba0dItAUPL0fMI')
     except:
         print "problem"
 
-create()
+printMap()
 
 
 

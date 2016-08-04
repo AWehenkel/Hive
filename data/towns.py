@@ -176,3 +176,5 @@ class Towns:
         return result
 
 
+t = Towns(0.1)
+t.genRandomLocation(50.5665, 14.78668, 10, 1)
