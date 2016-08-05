@@ -1,5 +1,5 @@
 import math
-import pymysql
+import MySQLdb
 from data import towns
 import random
 from data.towns import Towns
@@ -48,7 +48,7 @@ def getRandomStations (number) :
     chosen_pv = [0 for x in range(number)]
 
     # Open database connection
-    db = pymysql.connect("localhost","root","","hive")
+    db = MySQLdb.connect("localhost","root","videogame2809","hive")
 
     # Get the datas about towns
     towns = Towns(0.1).ville
@@ -111,12 +111,13 @@ mymap = gmplot.GoogleMapPlotter(50.8550624, 4.3053506, 8)
 
 cur = 0
 for station in stations:
-    hours = openingHours()
-    mymap.marker(station[0], station[1], title=str(cur), text="Power: " + str(station[2]) + " (kW)"
-                        "<br/>Open from " + str(hours[0]) + " to " + str(hours[1]))
+    if(cur == 397 or cur == 2582 or cur == 1826 or cur == 1835):
+        hours = openingHours()
+        mymap.marker(station[0], station[1], title=str(cur), text="Power: " + str(station[2]) + " (kW)"
+                            "<br/>Open from " + str(hours[0]) + " to " + str(hours[1]))
     cur += 1
 
-mymap.draw('./mymap.html', 'AIzaSyBj7JAQHEc-eFQkfuCXBba0dItAUPL0fMI')
+mymap.draw('./mymap1.html', 'AIzaSyBj7JAQHEc-eFQkfuCXBba0dItAUPL0fMI')
 
 # Insert station in database
 # Open database connection

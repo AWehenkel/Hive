@@ -1,4 +1,4 @@
-import pymysql
+import MySQLdb
 import googlemaps
 
 # inserts into the db a new station
