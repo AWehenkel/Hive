@@ -7,6 +7,8 @@ from scipy.sparse import csr_matrix
 from scipy.sparse.csgraph import minimum_spanning_tree
 import networkx as nx
 import matplotlib.pyplot as plt
+import gmplot
+import googlemaps
 
 class OptimStations:
 
@@ -126,7 +128,7 @@ class OptimStations:
                 station = destination[1].split(",")
                 print destination[0]
                 for i in range(0, nb_edge):
-                    weight = 1/self.computeWeight(destination[0], int(station[i])) * 10000
+                    weight = self.computeWeight(destination[0], int(station[i]))
                     request = "INSERT INTO graph_station_vehicle (id_vehicle, id_station, weight) VALUES (%d, %d, %f)" % (destination[0], int(station[i]), weight)
                     cursor.execute(request)
             db.commit()
@@ -161,10 +163,75 @@ class OptimStations:
             print "problem"
         db.close()
 
+    def registerProposedStations(self):
+        graph = csr_matrix(op.getAdjMatrix())
+        mst = minimum_spanning_tree(graph)
+
+        db = MySQLdb.connect("localhost", "root", "videogame2809", "hive")
+        cursor = db.cursor()
+        request = "SELECT COUNT(id_vehicle) AS nb_dest FROM destinations"
+        try:
+            cursor.execute(request)
+            result = cursor.fetchone()
+            nb_vehicle = result[0]
+            print nb_vehicle
+            #Init matrix adj of the spanning tree
+            matrix = []
+            for i in range(0, nb_vehicle):
+                matrix.append("")
+            msta = mst.toarray()
+            for i in range(0, len(msta)):
+                for j in range(0, len(msta[i])):
+                    if msta[i][j]:
+                        if(i >= nb_vehicle):
+                            id_station = i - nb_vehicle + 1
+                            id_vehicle = j
+                        else:
+                            id_station = j - nb_vehicle + 1
+                            id_vehicle = i
+                        matrix[id_vehicle] += "%d-%f," % (id_station, msta[i][j])
+            for i in range(0, nb_vehicle):
+                request = "UPDATE destinations SET proposed_stations='%s' WHERE id_vehicle=%d" % (matrix[i], i + 1)
+                cursor.execute(request)
+            db.commit()
+
+        except:
+            print "error"
+
+    #Creates a map in html format of the vehicle and their destinations
+    def createMap(self, destination_id):
+        gmaps = googlemaps.Client(key='AIzaSyD0QmwrWQGk3YPqvYv7-iUxdqqK7Zh0MO4')
+        db = MySQLdb.connect("localhost", "root", "videogame2809", "hive")
+        cursor = db.cursor()
+        request = "SELECT * FROM destinations NATURAL JOIN vehicles HAVING id_vehicle = id AND id_vehicle=%d" % destination_id
+        try:
+            cursor.execute(request)
+            datas = cursor.fetchall()
+            for data in datas:
+                print data
+                dep_pos = data[2].split(", ")
+                dep_lat = dep_pos[0]
+                dep_lng = dep_pos[1]
+                des_pos = data[3]
+                title = "EV%d" % data[0]
+                text = "<h3 style = \"text-align:center;\">" + title + "</h3>Capacite: " + str(data[6]) + "kWh<br/>Niveau de charge: " + str(data[9]) \
+                       + "%%<br/>Consommation moyenne: " + str(data[7]) + "kW/100km<br/>Position: " + data[2] + "<br/>Destination: " + data[3] + "<br/>"
+
+                gmap = gmplot.GoogleMapPlotter(dep_lat, dep_lng, 16)
+                #Draw departure point
+                gmap.marker(dep_lat, dep_lng, des_pos, title, text, 'green')
+            gmap.draw("data/vehiclesMatchingMap.html", 'AIzaSyD0QmwrWQGk3YPqvYv7-iUxdqqK7Zh0MO4')
+
+        except:
+            print "error"
+
 
 op = OptimStations()
+#op.registerGraph(5)
+op.registerProposedStations()
 #op.registerCloseStations(15)
 #op.computeWeight(12,12)
-graph = csr_matrix(op.getAdjMatrix())
-mst = minimum_spanning_tree(graph)
-print mst[2222]
+#graph = csr_matrix(op.getAdjMatrix())
+#mst = minimum_spanning_tree(graph)
+#print mst[2222]
+op.createMap(15)
