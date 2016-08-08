@@ -226,8 +226,10 @@ class OptimStations:
                 gmap.marker(dep_lat, dep_lng, des_pos, title, text, 'green')
             gmap.draw("data/vehiclesMatchingMap.html", 'AIzaSyD0QmwrWQGk3YPqvYv7-iUxdqqK7Zh0MO4')
 
+
         except:
             print "error"
+
 
 
 op = OptimStations()
