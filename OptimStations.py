@@ -10,7 +10,6 @@ import matplotlib.pyplot as plt
 
 class OptimStations:
 
-
     # Compute the distance between two points on the map
     def twoPointsDistance(self, x, y):
         lat1 = x[0]
