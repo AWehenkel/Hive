@@ -23,8 +23,8 @@ class OptimStations:
         delta_lat = math.fabs(math.radians(lat2 - lat1))
         delta_long = math.fabs(math.radians(long2 - long1))
 
-        tmp = math.sin(delta_lat / 2) * math.sin(delta_long / 2)
-        tmp += math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(delta_lat / 2) * math.sin(
+        tmp = math.sin(delta_lat / 2) * math.sin(delta_lat / 2)
+        tmp += math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(delta_long / 2) * math.sin(
             delta_long / 2)
 
         rel_dist = 2 * math.atan2(math.sqrt(tmp), math.sqrt(1 - tmp))
@@ -226,9 +226,77 @@ class OptimStations:
                 gmap.marker(dep_lat, dep_lng, des_pos, title, text, 'green')
             gmap.draw("data/vehiclesMatchingMap.html", 'AIzaSyD0QmwrWQGk3YPqvYv7-iUxdqqK7Zh0MO4')
 
-
         except:
             print "error"
+
+
+        #Displays in green the destinations that are deserved by a station and in red the other destinations
+    def displayDispatching (self):
+        request = "SELECT id_vehicle, des_pos, proposed_stations FROM destinations"
+        db = pymysql.connect("localhost", "root", "", "hive")
+        cursor = db.cursor()
+        mymap = gmplot.GoogleMapPlotter(50.8550624, 4.3053506, 8)
+        try:
+            cursor.execute(request)
+            vehicles = cursor.fetchall()
+
+            for vehicle in vehicles:
+                if vehicle[2] == "":
+                    color = "#FF0000"
+                else:
+                    color = "#00FF00"
+
+                position = vehicle[1].split(',', 1)
+                mymap.marker(float(position[0]), float(position[1]), title=str(vehicle[0]), c=color)
+
+        except:
+            print "Unable to fetch data"
+        db.close()
+        mymap.draw('./mymap.html', 'AIzaSyBj7JAQHEc-eFQkfuCXBba0dItAUPL0fMI')
+
+
+    def displayEVInfo(self, id):
+        request = "SELECT * FROM destinations WHERE id_vehicle=%d" % id
+        db = pymysql.connect("localhost", "root", "", "hive")
+        cursor = db.cursor()
+        mymap = gmplot.GoogleMapPlotter(50.8550624, 4.3053506, 8)
+        try:
+            cursor.execute(request)
+            vehicle = cursor.fetchone()
+            dep_time = vehicle[1]
+            dep_pos = vehicle[2].split(',')
+            des_pos = vehicle[3].split(',')
+            closestations = vehicle[4].split(',', vehicle[4].count(','))
+            proposed_stations = vehicle[5].split(',', vehicle[5].count(','))
+            print proposed_stations
+
+            #Display departure (blue) and destination (green)
+            print vehicle[3]
+            mymap.marker(float(dep_pos[0]), float(dep_pos[1]), vehicle[3], title=str(id), c="#00FFFF")
+            mymap.marker(float(des_pos[0]), float(des_pos[1]), title=str(id), c="#00FF00")
+
+            #Display the destinations that are close to the destination
+            cur = 0
+            for station in closestations:
+                request = "SELECT * FROM power_station WHERE id=%d" % int(closestations[cur])
+                cursor.execute(request)
+                station_info = cursor.fetchone()
+                mymap.marker(float(station_info[2]), float(station_info[3]), title=str(station_info[0]), c="#000000")
+                cur += 1
+
+            #Display the proposed station with their weigth
+            for station in proposed_stations:
+                station = station.split('-')
+                request = "SELECT * FROM power_station WHERE id=%d" % int(station[0])
+                cursor.execute(request)
+                station_info = cursor.fetchone()
+                mymap.marker(float(station_info[2]), float(station_info[3]), title=str(station_info[0]), text=str(station[1]), c="#FF0000")
+
+            mymap.draw('./mymap.html', 'AIzaSyBj7JAQHEc-eFQkfuCXBba0dItAUPL0fMI')
+
+        except:
+            print "Unable to fetch data"
+        db.close()
 
 
 
