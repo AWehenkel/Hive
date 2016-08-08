@@ -1,12 +1,14 @@
-import pymysql
-#from sklearn.neighbors import NearestNeighbors
+import MySQLdb
+from sklearn.neighbors import NearestNeighbors
 import gmplot
 import math
 import numpy
-#from scipy.sparse import csr_matrix
-#from scipy.sparse.csgraph import minimum_spanning_tree
-#import networkx as nx
+from scipy.sparse import csr_matrix
+from scipy.sparse.csgraph import minimum_spanning_tree
+import networkx as nx
 import matplotlib.pyplot as plt
+import gmplot
+import googlemaps
 
 class OptimStations:
 
@@ -34,7 +36,7 @@ class OptimStations:
     #returns the closest stations of a destination
     def getCloseStations(self, nb_station, leaf_size, destination):
         request = "Select * FROM power_station"
-        db = pymysql.connect("localhost", "root", "", "hive")
+        db = MySQLdb.connect("localhost", "root", "videogame2809", "hive")
         cursor = db.cursor()
         nbrs = NearestNeighbors(n_neighbors=nb_station, algorithm='ball_tree', metric='haversine',
                                      leaf_size=leaf_size)
@@ -53,7 +55,7 @@ class OptimStations:
 
     #Draw an html google map of the point and its neigbours
     def printMapForPoint(self, point, nb_neighbors):
-        db = pymysql.connect("localhost", "root", "", "hive")
+        db = MySQLdb.connect("localhost", "root", "videogame2809", "hive")
         cursor = db.cursor()
         stations = self.nbrs.kneighbors(point, nb_neighbors)[1]
         stations.tolist
@@ -72,7 +74,7 @@ class OptimStations:
 
     def registerCloseStations(self, nb_stations):
         request = "SELECT * FROM destinations"
-        db = pymysql.connect("localhost", "root", "", "hive")
+        db = MySQLdb.connect("localhost", "root", "videogame2809", "hive")
         cursor = db.cursor()
         try:
             cursor.execute(request)
@@ -103,7 +105,7 @@ class OptimStations:
     def computeWeight(self, id_vehicle, id_station):
         request_ev = "SELECT des_pos FROM destinations WHERE id_vehicle=%d" % id_vehicle
         request_st = "SELECT lat, lng FROM power_station WHERE id=%d" % id_station
-        db = pymysql.connect("localhost", "root", "", "hive")
+        db = MySQLdb.connect("localhost", "root", "videogame2809", "hive")
         cursor = db.cursor()
         try:
             cursor.execute(request_ev)
@@ -121,7 +123,7 @@ class OptimStations:
     # Computes and registers in the DB the weight of each edge of the graph
     def registerGraph(self, nb_edge):
         request = "SELECT id_vehicle, closestations FROM destinations"
-        db = pymysql.connect("localhost", "root", "", "hive")
+        db = MySQLdb.connect("localhost", "root", "videogame2809", "hive")
         cursor = db.cursor()
         try:
             cursor.execute(request)
@@ -142,7 +144,7 @@ class OptimStations:
         request0 = "SELECT * FROM destinations GROUP BY id_vehicle"
         request1 = "SELECT * FROM power_station GROUP BY id"
         request = "SELECT * FROM graph_station_vehicle"
-        db = pymysql.connect("localhost", "root", "", "hive")
+        db = MySQLdb.connect("localhost", "root", "videogame2809", "hive")
         cursor = db.cursor()
         nb_node = 0
         try:
@@ -165,79 +167,75 @@ class OptimStations:
             print "problem"
         db.close()
 
+    def registerProposedStations(self):
+        graph = csr_matrix(op.getAdjMatrix())
+        mst = minimum_spanning_tree(graph)
 
-    #Displays in green the destinations that are deserved by a station and in red the other destinations
-    def displayDispatching (self):
-        request = "SELECT id_vehicle, des_pos, proposed_stations FROM destinations"
-        db = pymysql.connect("localhost", "root", "", "hive")
+        db = MySQLdb.connect("localhost", "root", "videogame2809", "hive")
         cursor = db.cursor()
-        mymap = gmplot.GoogleMapPlotter(50.8550624, 4.3053506, 8)
+        request = "SELECT COUNT(id_vehicle) AS nb_dest FROM destinations"
         try:
             cursor.execute(request)
-            vehicles = cursor.fetchall()
-
-            for vehicle in vehicles:
-                if vehicle[2] == "":
-                    color = "#FF0000"
-                else:
-                    color = "#00FF00"
-
-                position = vehicle[1].split(',', 1)
-                mymap.marker(float(position[0]), float(position[1]), title=str(vehicle[0]), c=color)
+            result = cursor.fetchone()
+            nb_vehicle = result[0]
+            print nb_vehicle
+            #Init matrix adj of the spanning tree
+            matrix = []
+            for i in range(0, nb_vehicle):
+                matrix.append("")
+            msta = mst.toarray()
+            for i in range(0, len(msta)):
+                for j in range(0, len(msta[i])):
+                    if msta[i][j]:
+                        if(i >= nb_vehicle):
+                            id_station = i - nb_vehicle + 1
+                            id_vehicle = j
+                        else:
+                            id_station = j - nb_vehicle + 1
+                            id_vehicle = i
+                        matrix[id_vehicle] += "%d-%f," % (id_station, msta[i][j])
+            for i in range(0, nb_vehicle):
+                request = "UPDATE destinations SET proposed_stations='%s' WHERE id_vehicle=%d" % (matrix[i], i + 1)
+                cursor.execute(request)
+            db.commit()
 
         except:
-            print "Unable to fetch data"
-        db.close()
-        mymap.draw('./mymap.html', 'AIzaSyBj7JAQHEc-eFQkfuCXBba0dItAUPL0fMI')
+            print "error"
 
-
-    def displayEVInfo(self, id):
-        request = "SELECT * FROM destinations WHERE id_vehicle=%d" % id
-        db = pymysql.connect("localhost", "root", "", "hive")
+    #Creates a map in html format of the vehicle and their destinations
+    def createMap(self, destination_id):
+        gmaps = googlemaps.Client(key='AIzaSyD0QmwrWQGk3YPqvYv7-iUxdqqK7Zh0MO4')
+        db = MySQLdb.connect("localhost", "root", "videogame2809", "hive")
         cursor = db.cursor()
-        mymap = gmplot.GoogleMapPlotter(50.8550624, 4.3053506, 8)
+        request = "SELECT * FROM destinations NATURAL JOIN vehicles HAVING id_vehicle = id AND id_vehicle=%d" % destination_id
         try:
             cursor.execute(request)
-            vehicle = cursor.fetchone()
-            dep_time = vehicle[1]
-            dep_pos = vehicle[2].split(',')
-            des_pos = vehicle[3].split(',')
-            closestations = vehicle[4].split(',', vehicle[4].count(','))
-            proposed_stations = vehicle[5].split(',', vehicle[5].count(','))
-            print proposed_stations
+            datas = cursor.fetchall()
+            for data in datas:
+                print data
+                dep_pos = data[2].split(", ")
+                dep_lat = dep_pos[0]
+                dep_lng = dep_pos[1]
+                des_pos = data[3]
+                title = "EV%d" % data[0]
+                text = "<h3 style = \"text-align:center;\">" + title + "</h3>Capacite: " + str(data[6]) + "kWh<br/>Niveau de charge: " + str(data[9]) \
+                       + "%%<br/>Consommation moyenne: " + str(data[7]) + "kW/100km<br/>Position: " + data[2] + "<br/>Destination: " + data[3] + "<br/>"
 
-            #Display departure (blue) and destination (green)
-            print vehicle[3]
-            mymap.marker(float(dep_pos[0]), float(dep_pos[1]), vehicle[3], title=str(id), c="#00FFFF")
-            mymap.marker(float(des_pos[0]), float(des_pos[1]), title=str(id), c="#00FF00")
-
-            #Display the destinations that are close to the destination
-            cur = 0
-            for station in closestations:
-                request = "SELECT * FROM power_station WHERE id=%d" % int(closestations[cur])
-                cursor.execute(request)
-                station_info = cursor.fetchone()
-                mymap.marker(float(station_info[2]), float(station_info[3]), title=str(station_info[0]), c="#000000")
-                cur += 1
-
-            #Display the proposed station with their weigth
-            for station in proposed_stations:
-                station = station.split('-')
-                request = "SELECT * FROM power_station WHERE id=%d" % int(station[0])
-                cursor.execute(request)
-                station_info = cursor.fetchone()
-                mymap.marker(float(station_info[2]), float(station_info[3]), title=str(station_info[0]), text=str(station[1]), c="#FF0000")
-
-            mymap.draw('./mymap.html', 'AIzaSyBj7JAQHEc-eFQkfuCXBba0dItAUPL0fMI')
+                gmap = gmplot.GoogleMapPlotter(dep_lat, dep_lng, 16)
+                #Draw departure point
+                gmap.marker(dep_lat, dep_lng, des_pos, title, text, 'green')
+            gmap.draw("data/vehiclesMatchingMap.html", 'AIzaSyD0QmwrWQGk3YPqvYv7-iUxdqqK7Zh0MO4')
 
         except:
-            print "Unable to fetch data"
-        db.close()
+            print "error"
+
 
 op = OptimStations()
+#op.registerGraph(5)
+op.registerProposedStations()
 #op.registerCloseStations(15)
 #op.computeWeight(12,12)
 #graph = csr_matrix(op.getAdjMatrix())
 #mst = minimum_spanning_tree(graph)
 #print mst[2222]
-op.displayEVInfo(1)
+#op.createMap(15)

@@ -3,8 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <title>Title</title>
+    <script>
+        function changeMap(id_vehicle){
+            alert(id_vehicle);
+            window.location.href = "test";
+        }
+    </script>
 </head>
 <body>
-
+<select onchange="changeMap(this.value)">
+  <option value="volvo">Volvo</option>
+  <option value="saab">Saab</option>
+  <option value="opel">Opel</option>
+  <option value="audi">Audi</option>
+</select>
 </body>
 </html>
