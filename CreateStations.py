@@ -1,5 +1,5 @@
 import math
-import MySQLdb
+import pymysql
 from data import towns
 import random
 from data.towns import Towns
@@ -48,7 +48,7 @@ def getRandomStations (number) :
     chosen_pv = [0 for x in range(number)]
 
     # Open database connection
-    db = MySQLdb.connect("localhost","root","videogame2809","hive")
+    db = pymysql.connect("localhost","root","","hive")
 
     # Get the datas about towns
     towns = Towns(0.1).ville

@@ -1,5 +1,3 @@
-import MySQLdb
-import googlemaps
 
 # inserts into the db a new station
 def insertStation(db, type, lat, lng, power):
