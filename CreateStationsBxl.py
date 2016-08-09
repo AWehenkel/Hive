@@ -39,12 +39,12 @@ def getRandomSationsBxl(number):
             cur += 1
 
         #To get the stations in the rest of the country at the same time
-        #stations = getRandomStations(3000)
-        #for station in stations:
-        #    hours = openingHours()
-        #    mymap.marker(station[0], station[1], title=str(cur), text="Power: " + str(station[2]) + " (kW)"
-        #                "<br/>Open from " + str(hours[0]) + " to " + str(hours[1]))
-        #    cur += 1
+        stations = getRandomStations(3000)
+        for station in stations:
+            hours = openingHours()
+            mymap.marker(station[0], station[1], title=str(cur), text="Power: " + str(station[2]) + " (kW)"
+                        "<br/>Open from " + str(hours[0]) + " to " + str(hours[1]))
+            cur += 1
 
         mymap.draw('./mymap.html', 'AIzaSyBj7JAQHEc-eFQkfuCXBba0dItAUPL0fMI')
 
