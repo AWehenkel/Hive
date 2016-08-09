@@ -9,8 +9,57 @@ import networkx as nx
 import matplotlib.pyplot as plt
 import gmplot
 import googlemaps
+import pybingmaps
+import datetime
 
 class OptimStations:
+
+    #metricKdtree
+    def metricKdtree(self, x, y):
+        lat1 = x[0]
+        lat2 = y[0]
+        long1 = x[1]
+        long2 = y[1]
+        distance = 1
+        if (lat1 == lat2 and long1 == long2):
+            return 0
+        distance += self.timeBetween(x, y)
+        print distance
+        return distance
+
+    def timeBetween(self, x, y):
+        db = MySQLdb.connect("localhost", "root", "videogame2809", "hive")
+        cursor = db.cursor()
+        request = "SELECT physical_distance FROM distance WHERE (latA='%f' AND latB='%f' AND lngA='%f' AND lngB='%f') OR (latA='%f' AND latB='%f' AND lngA='%f' AND lngB='%f')" % (x[0], y[0], x[1], y[1], y[0], x[0], y[1], x[1])
+        try:
+            cursor.execute(request)
+            data = cursor.fetchone()
+            if data:
+                print "db works"
+                return data[0]
+            else:
+                # Your Bing Maps Key
+                bingMapsKey = "AmOtkPDIx-WA0ushTf-RENb0U_xe_7K6kBW7Xkl6JOpTG41mLY5rtUftM5H-QyUv"
+                bing = pybingmaps.Bing(bingMapsKey)
+                data = bing.route(x.tolist(), y.tolist(), transite="Transit", timeType="Departure", dateTime="8:00:00AM")
+                print "ok4"
+                distance = data['resourceSets'][0]['resources'][0]["routeLegs"][0]["routeSubLegs"][0]["travelDistance"]
+                time = data['resourceSets'][0]['resources'][0]["routeLegs"][0]["routeSubLegs"][0]["travelDuration"]
+                type = "Transit"
+                now = datetime.datetime.now()
+                timestamp = (datetime.datetime(now.year, now.month, now.day, 8 ) - datetime.datetime(1970, 1, 1)).total_seconds()
+                timestamp = datetime.datetime.fromtimestamp(timestamp - 7200)
+                query = "INSERT INTO distance(latA, lngA, latB, lngB, type, time_distance, time_departure, physical_distance)"\
+                + " VALUES (%f, %f, %f, %f, '%s', %d, '%s', %f)" % (x[0], x[1], y[0], y[1], type, time, timestamp, distance)
+                cursor.execute(query)
+                db.commit()
+                print "map works"
+                return distance
+        except:
+            print "map crashes"
+            return self.twoPointsDistance(x,y)
+
+
 
     # Compute the distance between two points on the map
     def twoPointsDistance(self, x, y):
@@ -35,17 +84,18 @@ class OptimStations:
 
     #returns the closest stations of a destination
     def getCloseStations(self, nb_station, leaf_size, destination):
-        request = "Select * FROM power_station"
+        request = "Select * FROM power_station LIMIT 15"
         db = MySQLdb.connect("localhost", "root", "videogame2809", "hive")
         cursor = db.cursor()
-        nbrs = NearestNeighbors(n_neighbors=nb_station, algorithm='ball_tree', metric='haversine',
+        nbrs = NearestNeighbors(n_neighbors=nb_station, algorithm='ball_tree', metric='pyfunc', func=self.metricKdtree,
                                      leaf_size=leaf_size)
         try:
             cursor.execute(request)
             stations = cursor.fetchall()
+            print stations
             points = []
             for station in stations:
-                points.append([station[2], station[3]])
+                points.append(([station[2], station[3]]))
             points.append(destination)
             nbrs.fit(points)
         except:
@@ -73,7 +123,7 @@ class OptimStations:
 
 
     def registerCloseStations(self, nb_stations):
-        request = "SELECT * FROM destinations"
+        request = "SELECT * FROM destinations LIMIT 1"
         db = MySQLdb.connect("localhost", "root", "videogame2809", "hive")
         cursor = db.cursor()
         try:
@@ -85,6 +135,7 @@ class OptimStations:
                 print c
                 c += 1
                 coord = dest[3].split(", ")
+                print coord
                 close = self.getCloseStations(nb_stations,5,(coord[0], coord[1]))
                 close[1].tolist
                 close_stat = ""
@@ -233,7 +284,7 @@ class OptimStations:
         #Displays in green the destinations that are deserved by a station and in red the other destinations
     def displayDispatching (self):
         request = "SELECT id_vehicle, des_pos, proposed_stations FROM destinations"
-        db = pymysql.connect("localhost", "root", "", "hive")
+        db = MySQLdb.connect("localhost", "root", "", "hive")
         cursor = db.cursor()
         mymap = gmplot.GoogleMapPlotter(50.8550624, 4.3053506, 8)
         try:
@@ -257,7 +308,7 @@ class OptimStations:
 
     def displayEVInfo(self, id):
         request = "SELECT * FROM destinations WHERE id_vehicle=%d" % id
-        db = pymysql.connect("localhost", "root", "", "hive")
+        db = MySQLdb.connect("localhost", "root", "", "hive")
         cursor = db.cursor()
         mymap = gmplot.GoogleMapPlotter(50.8550624, 4.3053506, 8)
         try:
@@ -302,10 +353,13 @@ class OptimStations:
 
 op = OptimStations()
 #op.registerGraph(5)
-op.registerProposedStations()
-#op.registerCloseStations(15)
+#op.registerProposedStations()
+op.registerCloseStations(5)
 #op.computeWeight(12,12)
 #graph = csr_matrix(op.getAdjMatrix())
 #mst = minimum_spanning_tree(graph)
 #print mst[2222]
 #op.createMap(15)
+y = (50.9058436133, 4.55486282443)
+x = (50.9415755679, 4.62340339163)
+print op.metricKdtree(y, y)
