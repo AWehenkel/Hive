@@ -150,11 +150,11 @@ class Towns:
         for town in self.ville.values() :
             town["radius"] = (town["superficie"] / math.pi)**.5
 
-    # Generates a number of random gps points
+    # Generates a number of random gps points in meter
     def genRandomLocation(self, lat, lng, dist, number):
         lat = lat / 180 * math.pi
         lng = lng / 180 * math.pi
-        rad_earth = 6372.796924
+        rad_earth = 6372796.924
         random.seed()
         # Convert dist to radian
         dist = dist / rad_earth
@@ -177,4 +177,4 @@ class Towns:
 
 
 t = Towns(0.1)
-t.genRandomLocation(50.5665, 14.78668, 10, 1)
+result = t.genRandomLocation(50.5665, 14.78668, 10, 1000)

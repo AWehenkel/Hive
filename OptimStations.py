@@ -1,24 +1,25 @@
-import MySQLdb
-from sklearn.neighbors import NearestNeighbors
+import pymysql
+#from sklearn.neighbors import NearestNeighbors
 import gmplot
 import math
 import numpy
-from scipy.sparse import csr_matrix
-from scipy.sparse.csgraph import minimum_spanning_tree
+#from scipy.sparse import csr_matrix
+#from scipy.sparse.csgraph import minimum_spanning_tree
 import networkx as nx
 import matplotlib.pyplot as plt
 import gmplot
 import googlemaps
-import pybingmaps
+#import pybingmaps
 import datetime
 import operator
 import json
 
 
 class OptimStations:
+
     def getSortedStations(self, stations, destination):
         stat_dest = {}
-        db = MySQLdb.connect("localhost", "root", "videogame2809", "hive")
+        db = pymysql.connect("localhost", "root", "videogame2809", "hive")
         cursor = db.cursor()
         c = 0
         for station in stations:
@@ -336,6 +337,30 @@ class OptimStations:
             print "error"
 
 
+            # Displays in green the destinations that are deserved by a station and in red the other destinations
+
+    def displayDispatching(self):
+        request = "SELECT id_vehicle, des_pos, proposed_stations FROM destinations"
+        db = MySQLdb.connect("localhost", "root", "", "hive")
+        cursor = db.cursor()
+        mymap = gmplot.GoogleMapPlotter(50.8550624, 4.3053506, 8)
+        try:
+            cursor.execute(request)
+            vehicles = cursor.fetchall()
+
+            for vehicle in vehicles:
+                if vehicle[2] == "":
+                    color = "#FF0000"
+                else:
+                    color = "#00FF00"
+
+                position = vehicle[1].split(',', 1)
+                mymap.marker(float(position[0]), float(position[1]), title=str(vehicle[0]), c=color)
+
+        except:
+            print "Unable to fetch data"
+        db.close()
+        mymap.draw('./mymap.html', 'AIzaSyBj7JAQHEc-eFQkfuCXBba0dItAUPL0fMI')
 
     # Insert the element in the list so that the elements in the list are sorted by their length
     def inOrderInsert(self, element, list):
