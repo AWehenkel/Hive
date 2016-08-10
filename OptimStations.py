@@ -29,7 +29,7 @@ class OptimStations:
             start = station[0:2]
             y = (float(destination[0]), float(destination[1]))
             request = "SELECT physical_distance FROM distance WHERE (latA='%f' AND latB='%f' AND lngA='%f' AND lngB='%f') OR (latA='%f' AND latB='%f' AND lngA='%f' AND lngB='%f')" % (
-            start[0], y[0], start[1], y[1], y[0], start[0], y[1], start[1])
+                start[0], y[0], start[1], y[1], y[0], start[0], y[1], start[1])
             try:
                 cursor.execute(request)
                 data = cursor.fetchone()
@@ -79,7 +79,7 @@ class OptimStations:
         db = MySQLdb.connect("localhost", "root", "videogame2809", "hive")
         cursor = db.cursor()
         request = "SELECT physical_distance FROM distance WHERE (latA='%f' AND latB='%f' AND lngA='%f' AND lngB='%f') OR (latA='%f' AND latB='%f' AND lngA='%f' AND lngB='%f')" % (
-        x[0], y[0], x[1], y[1], y[0], x[0], y[1], x[1])
+            x[0], y[0], x[1], y[1], y[0], x[0], y[1], x[1])
         try:
             cursor.execute(request)
             data = cursor.fetchone()
@@ -99,11 +99,11 @@ class OptimStations:
                 type = "Transit"
                 now = datetime.datetime.now()
                 timestamp = (
-                datetime.datetime(now.year, now.month, now.day, 8) - datetime.datetime(1970, 1, 1)).total_seconds()
+                    datetime.datetime(now.year, now.month, now.day, 8) - datetime.datetime(1970, 1, 1)).total_seconds()
                 timestamp = datetime.datetime.fromtimestamp(timestamp - 7200)
                 query = "INSERT INTO distance(latA, lngA, latB, lngB, type, time_distance, time_departure, physical_distance)" \
                         + " VALUES (%f, %f, %f, %f, '%s', %d, '%s', %f)" % (
-                x[0], x[1], y[0], y[1], type, time, timestamp, distance)
+                    x[0], x[1], y[0], y[1], type, time, timestamp, distance)
                 cursor.execute(query)
                 db.commit()
                 # print "map works"
@@ -191,11 +191,9 @@ class OptimStations:
                 print "station numero %d " % dest[0]
                 coord = dest[3].split(", ")
                 close = self.getCloseStations(nb_stations, perimeter, (coord[0], coord[1]))
-                close_stat = ""
-                for el in close:
-                    close_stat += json.dumps(close)
+                close_stat = json.dumps(close)
                 request = "UPDATE destinations SET closestations='%s' WHERE id_vehicle=%d" % (
-                str(close_stat[:-1]), dest[0])
+                    str(close_stat), dest[0])
                 cursor.execute(request)
                 db.commit()
         except:
@@ -235,11 +233,10 @@ class OptimStations:
             destinations = cursor.fetchall()
             for destination in destinations:
                 station = destination[1].split(",")
-                print destination[0]
                 for i in range(0, nb_edge):
                     weight = self.computeWeight(destination[0], int(station[i]))
                     request = "INSERT INTO graph_station_vehicle (id_vehicle, id_station, weight) VALUES (%d, %d, %f)" % (
-                    destination[0], int(station[i]), weight)
+                        destination[0], int(station[i]), weight)
                     cursor.execute(request)
             db.commit()
         except:
@@ -262,7 +259,6 @@ class OptimStations:
             matrix = numpy.zeros((nb_node, nb_node))
             cursor.execute(request)
             data = cursor.fetchall()
-            print nb_node
             for edge in data:
                 vehicle = edge[0] - 1
                 station = edge[1] + nb_destination - 1
@@ -275,7 +271,7 @@ class OptimStations:
 
     # Registers the stations proposed by the spanning tree
     def registerProposedStations(self):
-        graph = csr_matrix(op.getAdjMatrix())
+        graph = csr_matrix(self.getAdjMatrix())
         mst = minimum_spanning_tree(graph)
 
         db = MySQLdb.connect("localhost", "root", "videogame2809", "hive")
@@ -285,12 +281,12 @@ class OptimStations:
             cursor.execute(request)
             result = cursor.fetchone()
             nb_vehicle = result[0]
-            print nb_vehicle
             # Init matrix adj of the spanning tree
             matrix = []
             for i in range(0, nb_vehicle):
-                matrix.append("")
+                matrix.append([])
             msta = mst.toarray()
+
             for i in range(0, len(msta)):
                 for j in range(0, len(msta[i])):
                     if msta[i][j]:
@@ -300,11 +296,12 @@ class OptimStations:
                         else:
                             id_station = j - nb_vehicle + 1
                             id_vehicle = i
-                        matrix[id_vehicle] += "%d-%f," % (id_station, msta[i][j])
+                        matrix[id_vehicle].append((id_station, msta[i][j]))
             for i in range(0, nb_vehicle):
-                request = "UPDATE destinations SET proposed_stations='%s' WHERE id_vehicle=%d" % (matrix[i], i + 1)
+                request = "UPDATE destinations SET proposed_stations='%s' WHERE id_vehicle=%d" % (json.dumps(matrix[i]), i + 1)
                 cursor.execute(request)
             db.commit()
+            return matrix
 
         except:
             print "error"
@@ -339,9 +336,21 @@ class OptimStations:
             print "error"
 
 
-            # Displays in green the destinations that are deserved by a station and in red the other destinations
 
-    def displayDispatching(self):
+    # Insert the element in the list so that the elements in the list are sorted by their length
+    def inOrderInsert(self, element, list):
+        cur = 0
+        while cur < len(list) and len(element[1]) > len(list[cur][1]):
+            cur += 1
+        if cur == len(list):
+            list.append(element)
+        else:
+            list.insert(cur, element)
+
+    # Option 1: Displays in green the destinations that are deserved by a station, in orange the
+    # destinations that share a station and in red the other destinations
+    # Option 2: Or displays the station that are deserved in red and the one that are not deserved in black
+    def displayDispatching(self, option=1):
         request = "SELECT id_vehicle, des_pos, proposed_stations FROM destinations"
         db = MySQLdb.connect("localhost", "root", "", "hive")
         cursor = db.cursor()
@@ -349,227 +358,248 @@ class OptimStations:
         try:
             cursor.execute(request)
             vehicles = cursor.fetchall()
+            ok_vehicles = [0 for x in range(len(vehicles))]
 
+            proposed_stations = []
+            cur = 0
             for vehicle in vehicles:
-                if vehicle[2] == "":
-                    color = "#FF0000"
-                else:
-                    color = "#00FF00"
+                proposed_stations_for_1EV = [vehicle[0], vehicle[2].split(',', vehicle[2].count(','))]
+                self.inOrderInsert(proposed_stations_for_1EV, proposed_stations)
 
-                position = vehicle[1].split(',', 1)
-                mymap.marker(float(position[0]), float(position[1]), title=str(vehicle[0]), c=color)
+            # Assign a station to each vehicle
+            stations_number = range(4000)
+            cur = 0
+            for row in proposed_stations:
+                cur += 1
+                for stat in row[1]:
+                    stat = int(stat.split('-')[0])
+                    # Check if the station is still available
+                    if stat in stations_number:
+                        ok_vehicles[row[0] - 1] = 1
+                        stations_number.remove(stat)
+                        break
+
+            if option == 1:
+                for vehicle in vehicles:
+                    # Check if there is no station for this vehicle
+                    if vehicle[2] == "":
+                        color = "#FF0000"
+                    # Check if it shares stations but didn't get one
+                    else:
+                        if ok_vehicles[vehicle[0] - 1] == 0:
+                            color = "#FFA500"
+                        else:
+                            color = "#00FF00"
+
+                    position = vehicle[1].split(',', 1)
+                    mymap.marker(float(position[0]), float(position[1]), title=str(vehicle[0]), c=color)
+
+            if option == 2:
+                # Compute also the percentage of power that is acquired
+                total_power = 0
+                used_power = 0
+                for i in range(1, 4000):
+                    request = "SELECT * FROM power_station where id=%d" % i
+                    cursor.execute(request)
+                    station_info = cursor.fetchone()
+                    total_power += station_info[4]
+                    if i in stations_number:
+                        color = "#FFFF00"
+                    else:
+                        color = "#FF0000"
+                        used_power += station_info[4]
+
+                    title = "Station%d" % station_info[0]
+                    text = "<h3 style = \"text-align:center;\">" + title + "</h3>Puissance: " + str(
+                        station_info[4]) + "kW<br/>Type: " + str(station_info[1]) \
+                           + "<br/>Position: " + str(station_info[2]) + ", " + str(station_info[3]) + "<br/>"
+                    mymap.marker(float(station_info[2]), float(station_info[3]), title=title, text=text, c=color)
+                print 'percentage of stations used: %f' % (float(len(stations_number)) / 4000)
+                print "percentage of power used: %f" % (used_power / total_power)
+                print "percentage of destinations deserved: %f " % (float(ok_vehicles.count(1)) / (len(vehicles)))
 
         except:
             print "Unable to fetch data"
         db.close()
         mymap.draw('./mymap.html', 'AIzaSyBj7JAQHEc-eFQkfuCXBba0dItAUPL0fMI')
 
-        # Insert the element in the list so that the elements in the list are sorted by their length
-        def inOrderInsert(self, element, list):
-            cur = 0
-            while cur < len(list) and len(element[1]) > len(list[cur][1]):
-                cur += 1
+    # Display information about the selected vehicle (can choose to display close stations and
+    # priviledged stations
+    def displayEVInfo(self, mymap, id, close=1, priv=1):
+        request = "SELECT * FROM destinations WHERE id_vehicle=%d" % id
+        db = MySQLdb.connect("localhost", "root", "", "hive")
+        cursor = db.cursor()
+        try:
+            cursor.execute(request)
+            vehicle = cursor.fetchone()
+            dep_time = vehicle[1]
+            dep_pos = vehicle[2].split(',')
+            des_pos = vehicle[3].split(',')
+            closestations = vehicle[4].split(',', vehicle[4].count(','))
+            proposed_stations = vehicle[5].split(',', vehicle[5].count(','))
 
-            if cur == len(list):
-                list.append(element)
-            else:
-                list.insert(cur, element)
+            # Display departure (blue) and destination (green)
+            request = "SELECT * FROM vehicles WHERE id=%d" % vehicle[0]
+            cursor.execute(request)
+            ev_info = cursor.fetchone()
+            title = "EV%d" % vehicle[0]
+            text = "<h3 style = \"text-align:center;\">" + title + "</h3>Capacite: " + str(
+                ev_info[1]) + "kWh<br/>Niveau de charge: " + str(ev_info[4]) \
+                   + "%%<br/>Consommation moyenne: " + str(ev_info[2]) + "kW/100km<br/>Depart: " + vehicle[
+                       2] + "<br/>Destination: " + vehicle[3] + "<br/>"
+            mymap.marker(float(dep_pos[0]), float(dep_pos[1]), vehicle[3], title=title, text=text, c="#00FFFF")
+            mymap.marker(float(des_pos[0]), float(des_pos[1]), title=title, c="#00FF00")
 
-        # Option 1: Displays in green the destinations that are deserved by a station, in orange the
-        # destinations that share a station and in red the other destinations
-        # Option 2: Or displays the station that are deserved in red and the one that are not deserved in black
-        def displayDispatching(self, option=1):
-            request = "SELECT id_vehicle, des_pos, proposed_stations FROM destinations"
-            db = pymysql.connect("localhost", "root", "", "hive")
-            cursor = db.cursor()
-            mymap = gmplot.GoogleMapPlotter(50.8550624, 4.3053506, 8)
-            try:
-                cursor.execute(request)
-                vehicles = cursor.fetchall()
-                ok_vehicles = [0 for x in range(len(vehicles))]
-
-                proposed_stations = []
+            if close:
+                # Display the destinations that are close to the destination (in black)
                 cur = 0
-                for vehicle in vehicles:
-                    proposed_stations_for_1EV = [vehicle[0], vehicle[2].split(',', vehicle[2].count(','))]
-                    self.inOrderInsert(proposed_stations_for_1EV, proposed_stations)
-
-                # Assign a station to each vehicle
-                stations_number = range(4000)
-                cur = 0
-                for row in proposed_stations:
+                for station in closestations:
+                    request = "SELECT * FROM power_station WHERE id=%d" % int(closestations[cur])
+                    cursor.execute(request)
+                    station_info = cursor.fetchone()
+                    title = "Station%d" % station_info[0]
+                    text = "<h3 style = \"text-align:center;\">" + title + "</h3>Puissance: " + str(
+                        station_info[4]) + "kW<br/>Type: " + str(station_info[1]) \
+                           + "<br/>Position: " + str(station_info[2]) + ", " + str(station_info[3]) + "<br/>"
+                    mymap.marker(float(station_info[2]), float(station_info[3]), vehicle[3],
+                                 title=title, text=text, c="#000000")
                     cur += 1
-                    for stat in row[1]:
-                        stat = int(stat.split('-')[0])
-                        # Check if the station is still available
-                        if stat in stations_number:
-                            ok_vehicles[row[0] - 1] = 1
-                            stations_number.remove(stat)
-                            break
 
-                if option == 1:
-                    for vehicle in vehicles:
-                        # Check if there is no station for this vehicle
-                        if vehicle[2] == "":
-                            color = "#FF0000"
-                        # Check if it shares stations but didn't get one
-                        else:
-                            if ok_vehicles[vehicle[0] - 1] == 0:
-                                color = "#FFA500"
-                            else:
-                                color = "#00FF00"
+            if priv:
+                # Display the proposed station with their weight (in red)
+                for station in proposed_stations:
+                    station = station.split('-')
+                    request = "SELECT * FROM power_station WHERE id=%d" % int(station[0])
+                    cursor.execute(request)
+                    station_info = cursor.fetchone()
+                    title = "Station%d" % station_info[0]
+                    text = "<h3 style = \"text-align:center;\">" + title + "</h3>Puissance: " + str(
+                        station_info[4]) + "kW<br/>Type: " + str(station_info[1]) \
+                           + "<br/>Position: " + str(station_info[2]) + ", " + str(station_info[3]) + "<br/>"
+                    mymap.marker(float(station_info[2]), float(station_info[3]), vehicle[3],
+                                 title=title, text=text, c="#FF0000")
 
-                        position = vehicle[1].split(',', 1)
-                        mymap.marker(float(position[0]), float(position[1]), title=str(vehicle[0]), c=color)
+        except:
+            print "Unable to fetch data"
+        db.close()
 
-                if option == 2:
-                    # Compute also the percentage of power that is acquired
-                    total_power = 0
-                    used_power = 0
-                    for i in range(1, 4000):
-                        request = "SELECT * FROM power_station where id=%d" % i
-                        cursor.execute(request)
-                        station_info = cursor.fetchone()
-                        total_power += station_info[4]
-                        if i in stations_number:
-                            color = "#FFFF00"
-                        else:
-                            color = "#FF0000"
-                            used_power += station_info[4]
+    # Display several vehicles at a time (by a certain step) with their respective info
+    def recDisplayEVInfo(self, close=1, priv=1, step=1):
 
-                        title = "Station%d" % station_info[0]
-                        text = "<h3 style = \"text-align:center;\">" + title + "</h3>Puissance: " + str(
-                            station_info[4]) + "kW<br/>Type: " + str(station_info[1]) \
-                               + "<br/>Position: " + str(station_info[2]) + ", " + str(station_info[3]) + "<br/>"
-                        mymap.marker(float(station_info[2]), float(station_info[3]), title=title, text=text, c=color)
-                    print 'percentage of stations used: %f' % (float(len(stations_number)) / 4000)
-                    print "percentage of power used: %f" % (used_power / total_power)
-                    print "percentage of destinations deserved: %f " % (float(ok_vehicles.count(1)) / (len(vehicles)))
+        mymap = gmplot.GoogleMapPlotter(50.8550624, 4.3053506, 8)
 
-            except:
-                print "Unable to fetch data"
-            db.close()
+        for id in range(1, 3000):
+            self.displayEVInfo(mymap, id, close, priv)
             mymap.draw('./mymap.html', 'AIzaSyBj7JAQHEc-eFQkfuCXBba0dItAUPL0fMI')
+            if id % step == 0:
+                raw_input("Click for next step")
 
-        # Display information about the selected vehicle (can choose to display close stations and
-        # priviledged stations
-        def displayEVInfo(self, mymap, id, close=1, priv=1):
-            request = "SELECT * FROM destinations WHERE id_vehicle=%d" % id
-            db = pymysql.connect("localhost", "root", "", "hive")
-            cursor = db.cursor()
-            try:
+    def displayEvandStation(self, nb_ev, nb_station):
+        request1 = "SELECT * FROM vehicles"
+        request2 = "SELECT * FROM power_station"
+        db = MySQLdb.connect("localhost", "root", "", "hive")
+        cursor = db.cursor()
+        mymap = gmplot.GoogleMapPlotter(50.8550624, 4.3053506, 8)
+        try:
+            # Display the vehicle
+            cursor.execute(request1)
+            vehicles = cursor.fetchmany(nb_ev)
+            for vehicle in vehicles:
+                request = "SELECT des_pos FROM destinations WHERE id_vehicle=%d" % vehicle[0]
                 cursor.execute(request)
-                vehicle = cursor.fetchone()
-                dep_time = vehicle[1]
-                dep_pos = vehicle[2].split(',')
-                des_pos = vehicle[3].split(',')
-                closestations = vehicle[4].split(',', vehicle[4].count(','))
-                proposed_stations = vehicle[5].split(',', vehicle[5].count(','))
-
-                # Display departure (blue) and destination (green)
-                request = "SELECT * FROM vehicles WHERE id=%d" % vehicle[0]
-                cursor.execute(request)
-                ev_info = cursor.fetchone()
+                des_pos = cursor.fetchone()
+                des_pos_split = des_pos[0].split(',')
                 title = "EV%d" % vehicle[0]
                 text = "<h3 style = \"text-align:center;\">" + title + "</h3>Capacite: " + str(
-                    ev_info[1]) + "kWh<br/>Niveau de charge: " + str(ev_info[4]) \
-                       + "%%<br/>Consommation moyenne: " + str(ev_info[2]) + "kW/100km<br/>Depart: " + vehicle[
-                           2] + "<br/>Destination: " + vehicle[3] + "<br/>"
-                mymap.marker(float(dep_pos[0]), float(dep_pos[1]), vehicle[3], title=title, text=text, c="#00FFFF")
-                mymap.marker(float(des_pos[0]), float(des_pos[1]), title=title, c="#00FF00")
+                    vehicle[1]) + "kWh<br/>Niveau de charge: " + str(vehicle[4]) \
+                       + "%%<br/>Consommation moyenne: " + str(vehicle[2]) + "kW/100km<br/>Depart: " + vehicle[
+                           3] + "<br/>Destination: " + des_pos[0] + "<br/>"
+                mymap.marker(float(des_pos_split[0]), float(des_pos_split[1]), title=title, text=text, c="#00FFFF")
 
-                if close:
-                    # Display the destinations that are close to the destination (in black)
-                    cur = 0
-                    for station in closestations:
-                        request = "SELECT * FROM power_station WHERE id=%d" % int(closestations[cur])
-                        cursor.execute(request)
-                        station_info = cursor.fetchone()
-                        title = "Station%d" % station_info[0]
-                        text = "<h3 style = \"text-align:center;\">" + title + "</h3>Puissance: " + str(
-                            station_info[4]) + "kW<br/>Type: " + str(station_info[1]) \
-                               + "<br/>Position: " + str(station_info[2]) + ", " + str(station_info[3]) + "<br/>"
-                        mymap.marker(float(station_info[2]), float(station_info[3]), vehicle[3],
-                                     title=title, text=text, c="#000000")
-                        cur += 1
+            # Display the station
+            cursor.execute(request2)
+            stations = cursor.fetchmany(nb_station)
 
-                if priv:
-                    # Display the proposed station with their weight (in red)
-                    for station in proposed_stations:
-                        station = station.split('-')
-                        request = "SELECT * FROM power_station WHERE id=%d" % int(station[0])
-                        cursor.execute(request)
-                        station_info = cursor.fetchone()
-                        title = "Station%d" % station_info[0]
-                        text = "<h3 style = \"text-align:center;\">" + title + "</h3>Puissance: " + str(
-                            station_info[4]) + "kW<br/>Type: " + str(station_info[1]) \
-                               + "<br/>Position: " + str(station_info[2]) + ", " + str(station_info[3]) + "<br/>"
-                        mymap.marker(float(station_info[2]), float(station_info[3]), vehicle[3],
-                                     title=title, text=text, c="#FF0000")
+            # Display the station
+            cursor.execute(request2)
+            stations = cursor.fetchmany(nb_station)
+            for station in stations:
+                title = "Station%d" % station[0]
+                text = "<h3 style = \"text-align:center;\">" + title + "</h3>Puissance: " + str(
+                    station[4]) + "kW<br/>Type: " + str(station[1]) \
+                       + "<br/>Position: " + str(station[2]) + ", " + str(station[3]) + "<br/>"
+                mymap.marker(float(station[2]), float(station[3]), title=title, text=text, c="#000000")
 
-            except:
-                print "Unable to fetch data"
-            db.close()
+            mymap.draw('./mymap.html', 'AIzaSyBj7JAQHEc-eFQkfuCXBba0dItAUPL0fMI')
 
-        # Display several vehicles at a time (by a certain step) with their respective info
-        def recDisplayEVInfo(self, close=1, priv=1, step=1):
+        except:
+            print "Unable to fetch data"
+        db.close()
 
-            mymap = gmplot.GoogleMapPlotter(50.8550624, 4.3053506, 8)
+    def sortAndFilterStations(self, stations, power, order = "distance"):
+        #type: (stations, power, order) -> stations
 
-            for id in range(1, 3000):
-                self.displayEVInfo(mymap, id, close, priv)
-                mymap.draw('./mymap.html', 'AIzaSyBj7JAQHEc-eFQkfuCXBba0dItAUPL0fMI')
-                if id % step == 0:
-                    raw_input("Click for next step")
+        db = MySQLdb.connect("localhost", "root", "videogame2809", "hive")
+        cursor = db.cursor()
+        #Loads the station that are already reserved
+        request = "SELECT id_station FROM reservation"
+        try:
+            id = "AND id NOT IN ("
+            cursor.execute(request)
+            datas = cursor.fetchall()
+            for data in datas:
+                id += "%d," % data[0]
+            id = id[:-1] + ")"
+            if(not(datas)):
+                id = ""
+        except:
+            print "error"
+            id =""
 
-        def displayEvandStation(self, nb_ev, nb_station):
-            request1 = "SELECT * FROM vehicles"
-            request2 = "SELECT * FROM power_station"
-            db = pymysql.connect("localhost", "root", "", "hive")
-            cursor = db.cursor()
-            mymap = gmplot.GoogleMapPlotter(50.8550624, 4.3053506, 8)
-            try:
-                # Display the vehicle
-                cursor.execute(request1)
-                vehicles = cursor.fetchmany(nb_ev)
-                for vehicle in vehicles:
-                    request = "SELECT des_pos FROM destinations WHERE id_vehicle=%d" % vehicle[0]
-                    cursor.execute(request)
-                    des_pos = cursor.fetchone()
-                    des_pos_split = des_pos[0].split(',')
-                    title = "EV%d" % vehicle[0]
-                    text = "<h3 style = \"text-align:center;\">" + title + "</h3>Capacite: " + str(
-                        vehicle[1]) + "kWh<br/>Niveau de charge: " + str(vehicle[4]) \
-                           + "%%<br/>Consommation moyenne: " + str(vehicle[2]) + "kW/100km<br/>Depart: " + vehicle[
-                               3] + "<br/>Destination: " + des_pos[0] + "<br/>"
-                    mymap.marker(float(des_pos_split[0]), float(des_pos_split[1]), title=title, text=text, c="#00FFFF")
+        id_stations = "("
+        for station in stations:
+            id_stations += "%d," % station[0]
+        id_stations = id_stations[:-1] + ")"
 
-                # Display the station
-                cursor.execute(request2)
-                stations = cursor.fetchmany(nb_station)
+        if(order != "distance"):
+            if(order[0] == "-"):
+                sql_order = "ORDER BY %s DESC" % order[1:]
+            else:
+                sql_order = "ORDER BY %s" % order
+        else:
+            sql_order = "ORDER BY FIELD (id, %s)" % id_stations[1:-1]
 
-                # Display the station
-                cursor.execute(request2)
-                stations = cursor.fetchmany(nb_station)
-                for station in stations:
-                    title = "Station%d" % station[0]
-                    text = "<h3 style = \"text-align:center;\">" + title + "</h3>Puissance: " + str(
-                        station[4]) + "kW<br/>Type: " + str(station[1]) \
-                           + "<br/>Position: " + str(station[2]) + ", " + str(station[3]) + "<br/>"
-                    mymap.marker(float(station[2]), float(station[3]), title=title, text=text, c="#000000")
+        request = "SELECT * FROM power_station WHERE id IN %s %s AND power > %f %s" % (id_stations, id, power, sql_order)
+        try:
+            cursor.execute(request)
+            data = cursor.fetchall()
+        except:
+            print "problem"
+            return []
+        return data
 
-                mymap.draw('./mymap.html', 'AIzaSyBj7JAQHEc-eFQkfuCXBba0dItAUPL0fMI')
+    def getStations(self, id_des):
+        request = "SELECT * FROM destinations WHERE id_vehicle=%d" % id_des
+        db = MySQLdb.connect("localhost", "root", "videogame2809", "hive")
+        cursor = db.cursor()
+        try:
+            cursor.execute(request)
+            data = cursor.fetchone()
+        except:
+            print "problem"
+            return -1
+        da = data[4]
+        dic = json.loads(da)
+        self.sortAndFilterStations(dic, 100, order="-power")
 
-            except:
-                print "Unable to fetch data"
-            db.close()
 
-    op = OptimStations()
-    # op.registerGraph(5)
-    op.displayDispatching(2)
-    # op.registerCloseStations(15)
-    # op.computeWeight(12,12)
-    # graph = csr_matrix(op.getAdjMatrix())
-    # mst = minimum_spanning_tree(graph)
-    # print mst[2222]
-    # op.createMap(15)
+op = OptimStations()
+#op.getStations(1)
+# op.registerGraph(5)
+#op.displayDispatching(2)
+#op.registerCloseStations(100, 10000)
+# op.computeWeight(12,12)
+# graph = csr_matrix(op.getAdjMatrix())
+# mst = minimum_spanning_tree(graph)
+# print mst[2222]
+# op.createMap(15)
