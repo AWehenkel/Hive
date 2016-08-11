@@ -73,10 +73,10 @@ class OptimStations:
         distance = 1
         if (lat1 == lat2 and long1 == long2):
             return 0
-        distance += self.timeBetween(x, y)
+        distance += self.distanceBetween(x, y)
         return distance
 
-    def timeBetween(self, x, y):
+    def distanceBetween(self, x, y):
         db = MySQLdb.connect("localhost", "root", "videogame2809", "hive")
         cursor = db.cursor()
         request = "SELECT physical_distance FROM distance WHERE (latA='%f' AND latB='%f' AND lngA='%f' AND lngB='%f') OR (latA='%f' AND latB='%f' AND lngA='%f' AND lngB='%f')" % (
@@ -598,7 +598,7 @@ class OptimStations:
             cursor.execute(request)
             data = cursor.fetchall()
         except:
-            print "problem"
+            #print "problem"
             return []
         return data
 
