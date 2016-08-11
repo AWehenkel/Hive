@@ -3,12 +3,14 @@ import datetime
 import MySQLdb
 import OptimStations
 import random
+import PowerSlotManager
 # This class can be used to simulate vehicle using the algorithm at different time
 class SimulStations:
 
     def __init__(self):
         request1 = "SELECT * FROM destinations WHERE enough_fuel"
         request2 = "SELECT * FROM power_station"
+        self.power_slot_manager = PowerSlotManager.PowerSlotManager()
         db = MySQLdb.connect("localhost", "root", "videogame2809", "hive")
         cursor = db.cursor()
         try:
@@ -100,6 +102,8 @@ class SimulStations:
             request = "SELECT * FROM destinations WHERE enough_fuel AND id_vehicle NOT IN (%s) ORDER BY RAND() LIMIT %d" % (str(self.user_registered)[1:-1], nb_user)
         else:
             request = "SELECT * FROM destinations WHERE enough_fuel ORDER BY RAND() LIMIT %d" % (nb_user)
+        print request
+
         try:
             cursor.execute(request)
             vehicles = cursor.fetchall()
@@ -149,66 +153,92 @@ class SimulStations:
 
         print len(vehicles)
         problem = {}
+        print "creation of the graph"
+        id = 0
         #Creation of the graph
         for vehicle in vehicles:
             problem[vehicle[0]] = vehicle[4]
+            id += 1
+            print id
             close_stations = json.loads(vehicle[4])
             min_power = float(vehicle[7])/float(vehicle[8])
-            stations = optimiser.sortAndFilterStations(close_stations, min_power)
+            stations = optimiser.sortAndFilterStations(close_stations, min_power, vehicle[1], vehicle[8])
+            print id
             for station in stations:
-                if(self.isFreeStation(station[0], vehicle[1], vehicle[8])):
-                    weight = 1000
-                    for close in close_stations:
-                        if(close[0] == station[0]):
-                            weight = close[1]
-                            break
-                    request = "INSERT INTO graph_station_vehicle(id_vehicle, id_station, weight) VALUES (%d, %d, %f)" % (vehicle[0], station[0], weight)
-                    try:
-                        cursor.execute(request)
-                    except:
-                        print "error in acces db optandbook"
+                weight = 1000
+                for close in close_stations:
+                    if(close[0] == station[0]):
+                        weight = close[1]
+                        break
+                request = "INSERT INTO graph_station_vehicle(id_vehicle, id_station, weight) VALUES (%d, %d, %f)" % (vehicle[0], station[0], weight)
+                try:
+                    cursor.execute(request)
+                except:
+                    print "error in acces db optandbook"
         db.commit()
-
+        print "graph created"
+        print "creates the spanning tree"
         # Register the result of the spanning tree
         st = optimiser.registerProposedStations()
-
+        print "spanning tree created"
         #Retrieve data of station already
         # Affection of a station for each vehicle
         id = 0
         for vehicle in st:
             id += 1
+            print id
             if vehicle and random.random() < percentage_booking:
-
+                #data about vehicle
+                request = "SELECT duration, des_time FROM destinations WHERE id_vehicle=%d" % id
+                cursor.execute(request)
+                car = cursor.fetchone()
                 vehicle.sort(key=lambda tup: tup[1])
+                begin_time = datetime.datetime.strptime(str(car[1]), "%Y-%m-%d %H:%M:%S")
+                hour_begin = begin_time.hour
+
+                #Faire un tri des station_proposed en fontion du critere que l'on veut, pour le moment il s'agit uniquement de la distance(utiliser
+                #sort and filter
+
                 for station_proposed in vehicle:
-                    if station_proposed[0] not in self.station_registered:
-                        request = "INSERT INTO reservation(id_station, id_vehicle) VALUES (%d, %d)" % (station_proposed[0], id)
-                        cursor.execute(request)
-                        request = "DELETE FROM graph_station_vehicle WHERE id_vehicle=%d" % (id)
-                        cursor.execute(request)
-                        request = "DELETE FROM graph_station_vehicle WHERE id_station=%d" % (station_proposed[0])
-                        cursor.execute(request)
-                        self.station_registered.append(station_proposed[0])
+                    if self.isFreeStation(station_proposed[0], car[1], car[0]):
+                        for slot in range(0, car[0]):
+                            request = "SELECT min(id) FROM power_slot WHERE id_station=%d AND begin_time=%d" % (station_proposed[0], hour_begin + slot)
+                            cursor.execute(request)
+                            id_slot = cursor.fetchone()
+                            request = "UPDATE power_slot SET id_vehicle=%d WHERE id=%d" % (id, id_slot[0])
+                            cursor.execute(request)
+                        db.commit()
                         problem.__delitem__(id)
                         break
         # Reserve a station not chosen by the spanning tree
         for key in problem.keys():
             for vehicle in vehicles:
                 if vehicle[0] == key:
+                    request = "SELECT duration, des_time FROM destinations WHERE id_vehicle=%d" % id
+                    cursor.execute(request)
+                    car = cursor.fetchone()
+                    begin_time = datetime.datetime.strptime(str(car[1]), "%Y-%m-%d %H:%M:%S")
+                    hour_begin = begin_time.hour
                     close_stations = json.loads(vehicle[4])
-                    stations = optimiser.sortAndFilterStations(close_stations, 0, order="power")
+                    #stations = optimiser.sortAndFilterStations(close_stations, 0, order="power")
+                    #Faire un tri des stations.
+                    stations = close_stations
                     for station_proposed in stations:
-                        if station_proposed[0] not in self.station_registered:
-                            request = "INSERT INTO reservation(id_station, id_vehicle) VALUES (%d, %d)" % (
-                            station_proposed[0], key)
-                            cursor.execute(request)
-                            request = "DELETE FROM graph_station_vehicle WHERE id_vehicle=%d" % (key)
-                            cursor.execute(request)
-                            request = "DELETE FROM graph_station_vehicle WHERE id_station=%d" % (station_proposed[0])
-                            cursor.execute(request)
-                            self.station_registered.append(station_proposed[0])
+                        if self.isFreeStation(station_proposed[0], car[1], car[0]):
+                            for slot in range(0, car[0]):
+                                request = "SELECT min(id) FROM power_slot WHERE id_station=%d AND begin_time=%d" % (
+                                station_proposed[0], hour_begin + slot)
+                                cursor.execute(request)
+                                id_slot = cursor.fetchone()
+                                request = "UPDATE power_slot SET id_vehicle=%d WHERE id=%d" % (key, id_slot[0])
+                                cursor.execute(request)
+                            db.commit()
                             problem.__delitem__(key)
                             break
+                    break
+
+        request = "TRUNCATE TABLE graph_station_vehicle"
+        cursor.execute(request)
         db.commit()
         return len(problem)
 
@@ -237,18 +267,14 @@ class SimulStations:
 
 
     def isFreeStation(self, id_station, time_slot, nb_slot):
-        print time_slot
-        begin_time = datetime.datetime.fromtimestamp(time_slot)
-        print begin_time
-        request = "SELECT DISTINCT COUNT(id_station) AS counter FROM power_slot "
+        db = MySQLdb.connect("localhost", "root", "videogame2809", "hive")
+        cursor = db.cursor()
+        begin_time = datetime.datetime.strptime(str(time_slot), "%Y-%m-%d %H:%M:%S")
+        hour_begin = begin_time.hour
+        return self.power_slot_manager.isFree(id_station, hour_begin, nb_slot)
+
 
 
 t = SimulStations()
 #t.updateFuel()
-#t.computeStats(1500)
-db1 = MySQLdb.connect("localhost", "root", "videogame2809", "hive")
-cursor1 = db1.cursor()
-rere = "SELECT des_time FROM destinations WHERE id_vehicle=1"
-cursor1.execute(rere)
-daat = cursor1.fetchone()
-t.isFreeStation(1, daat[0], 4)
+t.computeStats(50)

@@ -1,25 +1,25 @@
-import pymysql
+import MySQLdb
 #from sklearn.neighbors import NearestNeighbors
 import gmplot
 import math
 import numpy
-#from scipy.sparse import csr_matrix
-#from scipy.sparse.csgraph import minimum_spanning_tree
+from scipy.sparse import csr_matrix
+from scipy.sparse.csgraph import minimum_spanning_tree
 import networkx as nx
 import matplotlib.pyplot as plt
 import gmplot
 import googlemaps
-#import pybingmaps
+import pybingmaps
 import datetime
 import operator
 import json
-import pybingmaps
+
 
 class OptimStations:
 
     def getSortedStations(self, stations, destination):
         stat_dest = {}
-        db = pymysql.connect("localhost", "root", "", "hive")
+        db = MySQLdb.connect("localhost", "root", "videogame2809", "hive")
         cursor = db.cursor()
         c = 0
         for station in stations:
@@ -36,8 +36,8 @@ class OptimStations:
                 data = cursor.fetchone()
                 if data:
                     distance = data[0]
-                elif self.distanceBetween(destination, start) > 2500:
-                    distance = self.distanceBetween(start, y) / 1000 * 1.5
+                elif self.twoPointsDistance(destination, start) > 2500:
+                    distance = self.twoPointsDistance(start, y) / 1000 * 1.5
                 else:
                     bingMapsKey = "AmOtkPDIx-WA0ushTf-RENb0U_xe_7K6kBW7Xkl6JOpTG41mLY5rtUftM5H-QyUv"
                     bing = pybingmaps.Bing(bingMapsKey)
@@ -151,7 +151,7 @@ class OptimStations:
     # returns the closest stations of a destination
     def getCloseStations(self, nb_station, perimeter, destination):
         request = "Select * FROM power_station"
-        db = MySQLdb.connect("localhost", "root", "", "hive")
+        db = MySQLdb.connect("localhost", "root", "videogame2809", "hive")
         cursor = db.cursor()
 
         # Hardcode a big number of station
@@ -179,7 +179,7 @@ class OptimStations:
 
     # Draws an html google map of the point and its neigbours
     def printMapForPoint(self, point, nb_neighbors):
-        db = pymysql.connect("localhost", "root", "", "hive")
+        db = MySQLdb.connect("localhost", "root", "videogame2809", "hive")
         cursor = db.cursor()
         stations = self.nbrs.kneighbors(point, nb_neighbors)[1]
         stations.tolist
@@ -198,7 +198,7 @@ class OptimStations:
     # Registers the nb_stations the nearest from each destination in a certain perimeter
     def registerCloseStations(self, nb_stations=0, perimeter=0):
         request = "SELECT * FROM destinations"
-        db = pymysql.connect("localhost", "root", "", "hive")
+        db = MySQLdb.connect("localhost", "root", "videogame2809", "hive")
         cursor = db.cursor()
         try:
             cursor.execute(request)
@@ -224,7 +224,7 @@ class OptimStations:
     def computeWeight(self, id_vehicle, id_station):
         request_ev = "SELECT des_pos FROM destinations WHERE id_vehicle=%d" % id_vehicle
         request_st = "SELECT lat, lng FROM power_station WHERE id=%d" % id_station
-        db = pymysql.connect("localhost", "root", "", "hive")
+        db = MySQLdb.connect("localhost", "root", "videogame2809", "hive")
         cursor = db.cursor()
         try:
             cursor.execute(request_ev)
@@ -242,7 +242,7 @@ class OptimStations:
     # Computes and registers in the DB the weight of each edge of the graph
     def registerGraph(self, nb_edge):
         request = "SELECT id_vehicle, closestations FROM destinations"
-        db = pymysql.connect("localhost", "root", "", "hive")
+        db = MySQLdb.connect("localhost", "root", "videogame2809", "hive")
         cursor = db.cursor()
         try:
             cursor.execute(request)
@@ -575,25 +575,11 @@ class OptimStations:
             print "Unable to fetch data"
         db.close()
 
-    def sortAndFilterStations(self, stations, power, order = "distance"):
+    def sortAndFilterStations(self, stations, power, begin_slot, nb_slot, order = "distance"):
         #type: (stations, power, order) -> stations
 
         db = MySQLdb.connect("localhost", "root", "videogame2809", "hive")
         cursor = db.cursor()
-        #Loads the station that are already reserved
-        request = "SELECT id_station FROM reservation"
-        try:
-            id = "AND id NOT IN ("
-            cursor.execute(request)
-            datas = cursor.fetchall()
-            for data in datas:
-                id += "%d," % data[0]
-            id = id[:-1] + ")"
-            if(not(datas)):
-                id = ""
-        except:
-            print "error"
-            id =""
 
         id_stations = "("
         for station in stations:
@@ -608,14 +594,19 @@ class OptimStations:
         else:
             sql_order = "ORDER BY FIELD (id, %s)" % id_stations[1:-1]
 
-        request = "SELECT * FROM power_station WHERE id IN %s %s AND power > %f %s" % (id_stations, id, power, sql_order)
+        request = "SELECT * FROM power_station WHERE id IN %s AND nominal_power > %f %s" % (id_stations, power, sql_order)
         try:
             cursor.execute(request)
             data = cursor.fetchall()
         except:
             #print "problem"
             return []
-        return data
+
+        station_ok = []
+        for d in data:
+            if(self.isFreeStation(d[0], begin_slot, nb_slot)):
+                station_ok.append(d)
+        return station_ok
 
     def getStations(self, id_des):
         request = "SELECT * FROM destinations WHERE id_vehicle=%d" % id_des
@@ -630,6 +621,13 @@ class OptimStations:
         da = data[4]
         dic = json.loads(da)
         self.sortAndFilterStations(dic, 100, order="-power")
+
+    def isFreeStation(self, id_station, time_slot, nb_slot):
+        db = MySQLdb.connect("localhost", "root", "videogame2809", "hive")
+        cursor = db.cursor()
+        begin_time = datetime.datetime.strptime(str(time_slot), "%Y-%m-%d %H:%M:%S")
+        hour_begin = begin_time.hour
+
 
 
 op = OptimStations()
