@@ -3,6 +3,8 @@ from OptimStations import *
 from data.towns import *
 import gmplot
 from Dijkstra import *
+import random
+import statistics
 
 
 class StationsOnTheGo:
@@ -60,6 +62,8 @@ class StationsOnTheGo:
 
     #Generate two points that are situated on the mediatrice of two given points
     def generatePointsAtSameDistance(self, x, y, closeness):
+
+        x[0] = float(x[0]); x[1] = float(x[1]); y[0] = float(y[0]); y[1] = float(y[1])
 
         mymap = gmplot.GoogleMapPlotter(x[0], x[1], 8)
         op = OptimStations()
@@ -188,19 +192,138 @@ class StationsOnTheGo:
         for i in range(1, len(path)-1):
             stations.insert(0, int(path[i]))
 
-        print "You have to pass through station " + str(stations)
+        #print "You have to pass through station " + str(stations)
 
         #Compute different times
         # 1) Without stop
         straight_time = self.travelTime(dep_pos, des_pos)
-        print "Time without stop is: " + str(straight_time) + " hours"
+        #print "Time without stop is: " + str(straight_time) + " hours"
 
         # 2) Time with the different stops
         w = g.get_vertex('des')
-        print "Time with the stops is: " + str(w.get_distance()) + " hours"
+        #print "Time with the stops is: " + str(w.get_distance()) + " hours"
 
+        lost_time = w.get_distance() - straight_time
+        return [stations, lost_time]
+
+
+    def displayFastestPath(self, nb_vehicles, closeness):
+
+        lost_times = []
+        stations_info = []
+        vehicles = []
+        destinations = []
+        try:
+            #Get all the stations
+            db = pymysql.connect("localhost", "root", "", "hive")
+            cursor = db.cursor()
+            request1 = "SELECT * FROM power_station"
+            request2 = "SELECT * FROM vehicles"
+            request3 = "SELECT * FROM destinations"
+            cursor.execute(request1)
+            stations_info = cursor.fetchall()
+            cursor.execute(request2)
+            vehicles = cursor.fetchall()
+            cursor.execute(request3)
+            destinations = cursor.fetchall()
+            db.close()
+        except:
+            print "Unable to fetch data"
+
+
+        op = OptimStations()
+        mymap = gmplot.GoogleMapPlotter(50.8550624, 4.3053506, 8)
+        random_ev = [random.randrange(1, len(vehicles)) for _ in range(nb_vehicles)]
+        for id in random_ev:
+
+            # !!!! A BOUGER: UTILISER POUR SIMULER UNE CHARGE PLUS FAIBLE
+            charge = vehicles[id][4]/5
+
+            dep_pos = destinations[id][2].split(',')
+            des_pos = destinations[id][3].split(',')
+            result = self.fastestPath(dep_pos, des_pos, vehicles[id][2], vehicles[id][1], charge,
+                                        closeness)
+            stations_path = result[0]
+            lost_times.append(result[1])
+
+            #Fetch the info about the stations
+            stations_path_info = []
+            for i in stations_path:
+                stations_path_info.append(stations_info[int(i)-1])
+
+            #Display info on a map
+            if  len(stations_path_info) == 0:
+                dist = op.twoPointsDistance(dep_pos, des_pos)
+                charging = self.chargingTime(dist, charge, vehicles[id][1], vehicles[id][2], 3)
+                title = "DepartforEV" + str(id)
+                text = "<h3 style = \"text-align:center;\">" + title + "</h3><h4> HomeStation </h4>Charging time: " \
+                           + str(charging) + " hours<br/>Power: 3 kW<h4> Vehicule </h4>Capacity: " + str(vehicles[id][1]) + \
+                           " kWh<br/>Charge: " + str(charge) + " %%<br/>Consumption: " + str(vehicles[id][2]) \
+                           + " kWh/100km<br/>Position: " + str(dep_pos)  + "<br/>Destination: " +  str(des_pos)
+
+                mymap.marker(dep_pos[0], dep_pos[1], destinations[id][3], title=title, text=text, c="#00FF00")
+            else:
+                cur = 0
+                for station in stations_path_info:
+                    #If we reach the last station before destination
+                    if cur == len(stations_path_info)-1:
+                        dist = op.twoPointsDistance([station[2], station[3]], des_pos)
+                        charging = self.chargingTime(dist, 0, vehicles[id][1], vehicles[id][2], station[4])
+                        title = "Station" + str(station[0]) + "forEV" + str(id)
+                        text = "<h3 style = \"text-align:center;\">" + title + "</h3>Charging time: " + str(charging)+\
+                               " hours<br/>Power: " + str(station[4]) + " kW<br/>Position: " + str(station[2]) \
+                               + ", " + str(station[3])
+                        mymap.marker(station[2], station[3], destinations[id][3], title=title, text=text, c="#FF0000")
+                    if cur == 0:
+                        stat_pos = str(station[2]) + ", " + str(station[3])
+                        dist = op.twoPointsDistance(dep_pos, [station[2], station[3]])
+                        charging = self.chargingTime(dist, charge, vehicles[id][1], vehicles[id][2], 3)
+                        title = "DepartforEV" + str(id)
+                        text = "<h3 style = \"text-align:center;\">" + title + "</h3><h4> HomeStation </h4>Charging time: " \
+                           + str(charging) + " hours<br/>Power: 3 kW<h4> Vehicule </h4>Capacity: " + str(vehicles[id][1]) + \
+                           " kWh<br/>Charge: " + str(charge) + " %%<br/>Consumption: " + str(vehicles[id][2]) \
+                           + " kWh/100km<br/>Position: " + str(dep_pos)  + "<br/>Destination: " +  str(des_pos)
+                        mymap.marker(dep_pos[0], dep_pos[1], stat_pos, title=title, text=text, c="#00FF00")
+                    else:
+                        next_station = stations_path_info[cur+1]
+                        nxt_stat_pos = str(next_station[2]) + ", " + str(next_station[3])
+                        dist = op.twoPointsDistance([station[2], station[3]], nxt_stat_pos)
+                        charging = self.chargingTime(dist, 0, vehicles[id][1], vehicles[id][2], station[4])
+                        title = "Station" + str(station[0]) + "forEV" + str(id)
+                        text = "<h3 style = \"text-align:center;\">" + title + "</h3>Charging time: " + str(charging) +\
+                               " hours<br/>Power: " + str(station[4]) + " kW<br/>Position: " + str(station[2]) \
+                               + ", " + str(station[3])
+                        mymap.marker(station[2], station[3], nxt_stat_pos, title=title, text=text, c="#FF0000")
+
+            title = "DestforEV" + str(id)
+            text = "<h3 style = \"text-align:center;\">" + title + "</h3>Position: " + str(des_pos)
+            mymap.marker(des_pos[0], des_pos[1], title=title, text=text, c="#FFFF00")
+
+        #Print statistics
+        average = sum(lost_times)/len(lost_times)
+        print "The average lost time is " + str(average) + " hours for " + str(nb_vehicles) + " vehicles."
+
+        variance = statistics.variance(lost_times)
+        print "The variance of lost time is " + str(variance) + " hours for " + str(nb_vehicles) + " vehicles."
+
+        #Print statistics for deviated vehicles
+        dev_lost_times = []
+        for i in lost_times:
+            if i != float(0):
+                dev_lost_times.append(i)
+
+        if len(dev_lost_times) != 0:
+            dev_average = sum(dev_lost_times)/len(dev_lost_times)
+            print "The average lost time is " + str(dev_average) + " hours for " + str(len(dev_lost_times)) + " deviated vehicles."
+
+            if len(dev_lost_times) != 1:
+                dev_variance = statistics.variance(dev_lost_times)
+                print "The variance of lost time is " + str(dev_variance) + " hours for " + str(len(dev_lost_times)) + " deviated vehicles."
+
+        mymap.draw('./mymap.html', 'AIzaSyBj7JAQHEc-eFQkfuCXBba0dItAUPL0fMI')
 
 
 sotg = StationsOnTheGo()
 #sol = sotg.fastestPath([50.9058436133, 4.55486282443], [51.2472636991, 3.03663216625], 18, 60, 50, 2)
-sotg.fastestPath([50.9058436133, 4.55486282443], [51.2472636991, 3.03663216625], 18, 10, 50, 0.5)
+#sotg.fastestPath([50.9058436133, 4.55486282443], [51.2472636991, 3.03663216625], 18, 10, 50, 0.5)
+sotg.displayFastestPath(10, 0.5)

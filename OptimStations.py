@@ -337,8 +337,7 @@ class OptimStations:
             print "error"
 
 
-            # Displays in green the destinations that are deserved by a station and in red the other destinations
-
+    # Displays in green the destinations that are deserved by a station and in red the other destinations
     def displayDispatching(self):
         request = "SELECT id_vehicle, des_pos, proposed_stations FROM destinations"
         db = MySQLdb.connect("localhost", "root", "", "hive")
@@ -377,7 +376,7 @@ class OptimStations:
     # Option 2: Or displays the station that are deserved in red and the one that are not deserved in black
     def displayDispatching(self, option=1):
         request = "SELECT id_vehicle, des_pos, proposed_stations FROM destinations"
-        db = MySQLdb.connect("localhost", "root", "", "hive")
+        db = pymysql.connect("localhost", "root", "", "hive")
         cursor = db.cursor()
         mymap = gmplot.GoogleMapPlotter(50.8550624, 4.3053506, 8)
         try:
