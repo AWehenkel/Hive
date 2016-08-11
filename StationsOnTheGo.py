@@ -24,7 +24,6 @@ class StationsOnTheGo:
         except:
             print "Unable to fetch data"
 
-
         #Draw the two points on the map
         mymap = gmplot.GoogleMapPlotter(x[0], x[1], 8)
         mymap.marker(float(x[0]), float(x[1]),title="PointA", c="#00FF00")
