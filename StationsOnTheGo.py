@@ -11,7 +11,12 @@ class StationsOnTheGo:
 
     #Determines the station that are situated on the way between two locations
     #The smaller closeness is, the less station you will get
-    def onTheWay (self, x, y, closeness):
+    def onTheWay (self, x, y, des_time, closeness):
+
+        x[0] = float(x[0])
+        y[0] = float(y[0])
+        x[1] = float(x[1])
+        y[1] = float(y[1])
 
         station = []
         try:
@@ -33,28 +38,48 @@ class StationsOnTheGo:
         op = OptimStations()
         med_points = self.generatePointsAtSameDistance(x, y, closeness)
         med_distances = [0 for z in range(2)]
-        med_distances[0] = op.twoPointsDistance(x, med_points[0])
-        med_distances[1] = op.twoPointsDistance(x, med_points[1])
+        med_distances[0] = op.asTheCrowFlies(x, med_points[0])
+        med_distances[1] = op.asTheCrowFlies(x, med_points[1])
 
         # Compute the distance between the two points and the data for the third circle
-        distance = op.twoPointsDistance(x, y)
+        distance = op.asTheCrowFlies(x, y)
         center = [(x[0]+y[0])/2, (x[1]+y[1])/2]
         mymap.marker(float(center[0]), float(center[1]),title="Center", c="#00FF00")
+
+        #Compute the time to reach the destination
+        time_to_reach = op.distanceBetween(x, y, "Driving", option="time")
+        time_to_reach = 0
+        dep_time = des_time - time_to_reach
 
         #Select the stations that are in the two circles
         selected_stations = []
         for station in stations:
-            dist_to_center = op.twoPointsDistance(center, [station[2], station[3]])
-            dist_to_med0 = op.twoPointsDistance(med_points[0], [station[2], station[3]])
-            dist_to_med1 = op.twoPointsDistance(med_points[1], [station[2], station[3]])
+            dist_to_center = op.asTheCrowFlies(center, [station[2], station[3]])
+            dist_to_med0 = op.asTheCrowFlies(med_points[0], [station[2], station[3]])
+            dist_to_med1 = op.asTheCrowFlies(med_points[1], [station[2], station[3]])
 
             if dist_to_center < distance/2 and dist_to_med0 < med_distances[0] and dist_to_med1 < med_distances[1]:
-                selected_stations.append(station)
-                title = "Station%d" % station[0]
-                text = "<h3 style = \"text-align:center;\">" + title + "</h3>Puissance: " + str(station[4]) + \
-                       "kW<br/>Type: " + str(station[1]) \
-                       + "<br/>Position: " + str(station[2]) + ", " + str(station[3]) + "<br/>"
-                mymap.marker(float(station[2]), float(station[3]), title=title, text=text, c="#FF0000")
+
+                #Remove the stations that will not be available during the trip
+                # !!! MAYBE DO STH MORE PRECISE LATER ON !!!
+                slots = []
+                request = "SELECT DISTINCT * FROM power_slot WHERE id_station='%d' AND id_vehicle=%d AND begin_time<=%f AND begin_time>=%d"\
+                          % (station[0], -1, des_time, dep_time)
+                try:
+                    #Get all the stations
+                    cursor.execute(request)
+                    slots = cursor.fetchone()
+                except:
+                    print "Unable to fetch data about slots"
+
+                #If there is a slot available, we keep the station
+                if slots:
+                    selected_stations.append(station)
+                    title = "Station%d" % station[0]
+                    text = "<h3 style = \"text-align:center;\">" + title + "</h3>Puissance: " + str(station[4]) + \
+                           "kW<br/>Type: " + str(station[1]) \
+                           + "<br/>Position: " + str(station[2]) + ", " + str(station[3]) + "<br/>"
+                    mymap.marker(float(station[2]), float(station[3]), title=title, text=text, c="#FF0000")
 
         mymap.draw("./mymap.html", 'AIzaSyD0QmwrWQGk3YPqvYv7-iUxdqqK7Zh0MO4')
 
@@ -67,7 +92,7 @@ class StationsOnTheGo:
 
         mymap = gmplot.GoogleMapPlotter(x[0], x[1], 8)
         op = OptimStations()
-        distance = op.twoPointsDistance(x, y)
+        distance = op.asTheCrowFlies(x, y)
         mymap.marker(float(x[0]), float(x[1]),title="Center", c="#00FF00")
         mymap.marker(float(y[0]), float(y[1]),title="Center", c="#00FF00")
 
@@ -82,8 +107,8 @@ class StationsOnTheGo:
         ok_points = []
         for point in points:
             point = point.split(',')
-            distance1 = op.twoPointsDistance(point, x)
-            distance2 = op.twoPointsDistance(point,y)
+            distance1 = op.asTheCrowFlies(point, x)
+            distance2 = op.asTheCrowFlies(point, y)
             if (math.fabs(distance1-distance2)) < tresh:
                 ok_points.append(point)
 
@@ -91,7 +116,7 @@ class StationsOnTheGo:
         max = 0
         chosen_point1 = ok_points[0]
         for point in ok_points:
-            dist = op.twoPointsDistance(point, center)
+            dist = op.asTheCrowFlies(point, center)
             if dist > max:
                 max = dist
                 chosen_point1 = [float(point[0]), float(point[1])]
@@ -130,18 +155,18 @@ class StationsOnTheGo:
     def travelTime(self, x, y):
         speed = 80000 #in m/hours
         op = OptimStations()
-        distance = op.twoPointsDistance(x, y)
+        distance = op.distanceBetween(x, y)
         time = distance/speed #in hours
 
         return time
 
     #This function gives the id of the stations someone with low carburant (or making a long trip) has
     # to go through to get to his destination in a minimum amount of time
-    def fastestPath(self, dep_pos, des_pos, ev_csmpt, ev_capacity, ev_charge, closeness):
+    def fastestPath(self, dep_pos, des_pos, ev_csmpt, ev_capacity, ev_charge, des_time, closeness):
 
         max_distance = (float(ev_capacity)/ev_csmpt)*1e5
         #First we select the station that are along the path
-        stations = self.onTheWay(dep_pos, des_pos, closeness)
+        stations = self.onTheWay(dep_pos, des_pos, des_time, closeness)
         op = OptimStations()
 
         #Add all the vertexes to the graph
@@ -152,20 +177,20 @@ class StationsOnTheGo:
             g.add_vertex(str(station[0]))
 
         #Add all the links and their weight
-        dist_dep_des = op.twoPointsDistance(dep_pos, des_pos)
+        dist_dep_des = op.distanceBetween(dep_pos, des_pos)
         if dist_dep_des < max_distance:
             weight = self.travelTime(dep_pos, des_pos) + self.chargingTime(dist_dep_des, ev_charge, ev_capacity, ev_csmpt, 3)
             g.add_edge('dep', 'des', weight)
 
         for station in stations:
             #Link all the station to the departure and destination if possible
-            dist_dep = op.twoPointsDistance(dep_pos, [station[2],station[3]])
+            dist_dep = op.distanceBetween(dep_pos, [station[2], station[3]])
             if dist_dep < max_distance:
                 # Compute the weight (in hours)
                 weight = self.travelTime(dep_pos, [station[2],station[3]]) + self.chargingTime(dist_dep, ev_charge, ev_capacity, ev_csmpt, 3)
                 g.add_edge('dep', str(station[0]), weight)
 
-            dist_des =  op.twoPointsDistance(des_pos, [station[2],station[3]])
+            dist_des =  op.distanceBetween(des_pos, [station[2], station[3]])
             if dist_des < max_distance:
                 # Compute the weight (in hours)
                 weight = self.travelTime(des_pos, [station[2],station[3]]) + self.chargingTime(dist_des, 0, ev_capacity, ev_csmpt, station[4])
@@ -173,8 +198,8 @@ class StationsOnTheGo:
 
             #Connect the station to all other station that are accesible and forwarding
             for next_station in stations:
-                dist_next_to_des = op.twoPointsDistance(des_pos, [next_station[2],next_station[3]])
-                dist_to_next = op.twoPointsDistance([station[2],station[3]], [next_station[2],next_station[3]])
+                dist_next_to_des = op.distanceBetween(des_pos, [next_station[2], next_station[3]])
+                dist_to_next = op.distanceBetween([station[2], station[3]], [next_station[2], next_station[3]])
                 if dist_to_next < max_distance and dist_next_to_des < dist_des:
                     # Compute the weight (in hours)
                     weight = self.travelTime([station[2],station[3]], [next_station[2],next_station[3]])\
@@ -197,14 +222,21 @@ class StationsOnTheGo:
         #Compute different times
         # 1) Without stop
         straight_time = self.travelTime(dep_pos, des_pos)
-        #print "Time without stop is: " + str(straight_time) + " hours"
+        print "Time without stop is: " + str(straight_time) + " hours"
 
         # 2) Time with the different stops
         w = g.get_vertex('des')
-        #print "Time with the stops is: " + str(w.get_distance()) + " hours"
+        print "Time with the stops is: " + str(w.get_distance()) + " hours"
 
         lost_time = w.get_distance() - straight_time
         return [stations, lost_time]
+
+
+    def dateTimeToTime (self, dateTime):
+        time = str(dateTime.time()).split(':', 2)
+        time = float(time[0]) + float(time[1])/60 + float(time[2])/3600
+        return time
+
 
 
     def displayFastestPath(self, nb_vehicles, closeness):
@@ -230,7 +262,6 @@ class StationsOnTheGo:
         except:
             print "Unable to fetch data"
 
-
         op = OptimStations()
         mymap = gmplot.GoogleMapPlotter(50.8550624, 4.3053506, 8)
         random_ev = [random.randrange(1, len(vehicles)) for _ in range(nb_vehicles)]
@@ -241,8 +272,9 @@ class StationsOnTheGo:
 
             dep_pos = destinations[id][2].split(',')
             des_pos = destinations[id][3].split(',')
+            des_time = self.dateTimeToTime(destinations[id][1])
             result = self.fastestPath(dep_pos, des_pos, vehicles[id][2], vehicles[id][1], charge,
-                                        closeness)
+                                        des_time, closeness)
             stations_path = result[0]
             lost_times.append(result[1])
 
@@ -253,7 +285,7 @@ class StationsOnTheGo:
 
             #Display info on a map
             if  len(stations_path_info) == 0:
-                dist = op.twoPointsDistance(dep_pos, des_pos)
+                dist = op.distanceBetween(dep_pos, des_pos)
                 charging = self.chargingTime(dist, charge, vehicles[id][1], vehicles[id][2], 3)
                 title = "DepartforEV" + str(id)
                 text = "<h3 style = \"text-align:center;\">" + title + "</h3><h4> HomeStation </h4>Charging time: " \
@@ -267,7 +299,7 @@ class StationsOnTheGo:
                 for station in stations_path_info:
                     #If we reach the last station before destination
                     if cur == len(stations_path_info)-1:
-                        dist = op.twoPointsDistance([station[2], station[3]], des_pos)
+                        dist = op.distanceBetween([station[2], station[3]], des_pos)
                         charging = self.chargingTime(dist, 0, vehicles[id][1], vehicles[id][2], station[4])
                         title = "Station" + str(station[0]) + "forEV" + str(id)
                         text = "<h3 style = \"text-align:center;\">" + title + "</h3>Charging time: " + str(charging)+\
@@ -276,7 +308,7 @@ class StationsOnTheGo:
                         mymap.marker(station[2], station[3], destinations[id][3], title=title, text=text, c="#FF0000")
                     if cur == 0:
                         stat_pos = str(station[2]) + ", " + str(station[3])
-                        dist = op.twoPointsDistance(dep_pos, [station[2], station[3]])
+                        dist = op.distanceBetween(dep_pos, [station[2], station[3]])
                         charging = self.chargingTime(dist, charge, vehicles[id][1], vehicles[id][2], 3)
                         title = "DepartforEV" + str(id)
                         text = "<h3 style = \"text-align:center;\">" + title + "</h3><h4> HomeStation </h4>Charging time: " \
@@ -287,7 +319,7 @@ class StationsOnTheGo:
                     else:
                         next_station = stations_path_info[cur+1]
                         nxt_stat_pos = str(next_station[2]) + ", " + str(next_station[3])
-                        dist = op.twoPointsDistance([station[2], station[3]], nxt_stat_pos)
+                        dist = op.distanceBetween([station[2], station[3]], nxt_stat_pos)
                         charging = self.chargingTime(dist, 0, vehicles[id][1], vehicles[id][2], station[4])
                         title = "Station" + str(station[0]) + "forEV" + str(id)
                         text = "<h3 style = \"text-align:center;\">" + title + "</h3>Charging time: " + str(charging) +\
@@ -303,8 +335,9 @@ class StationsOnTheGo:
         average = sum(lost_times)/len(lost_times)
         print "The average lost time is " + str(average) + " hours for " + str(nb_vehicles) + " vehicles."
 
-        variance = statistics.variance(lost_times)
-        print "The variance of lost time is " + str(variance) + " hours for " + str(nb_vehicles) + " vehicles."
+        if len(lost_times) > 1:
+            variance = statistics.variance(lost_times)
+            print "The variance of lost time is " + str(variance) + " hours for " + str(nb_vehicles) + " vehicles."
 
         #Print statistics for deviated vehicles
         dev_lost_times = []
@@ -326,4 +359,4 @@ class StationsOnTheGo:
 sotg = StationsOnTheGo()
 #sol = sotg.fastestPath([50.9058436133, 4.55486282443], [51.2472636991, 3.03663216625], 18, 60, 50, 2)
 #sotg.fastestPath([50.9058436133, 4.55486282443], [51.2472636991, 3.03663216625], 18, 10, 50, 0.5)
-sotg.displayFastestPath(10, 0.5)
+sotg.displayFastestPath(1, 2)

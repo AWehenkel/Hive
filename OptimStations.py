@@ -13,13 +13,13 @@ import googlemaps
 import datetime
 import operator
 import json
-
+import pybingmaps
 
 class OptimStations:
 
     def getSortedStations(self, stations, destination):
         stat_dest = {}
-        db = pymysql.connect("localhost", "root", "videogame2809", "hive")
+        db = pymysql.connect("localhost", "root", "", "hive")
         cursor = db.cursor()
         c = 0
         for station in stations:
@@ -36,8 +36,8 @@ class OptimStations:
                 data = cursor.fetchone()
                 if data:
                     distance = data[0]
-                elif self.twoPointsDistance(destination, start) > 2500:
-                    distance = self.twoPointsDistance(start, y) / 1000 * 1.5
+                elif self.distanceBetween(destination, start) > 2500:
+                    distance = self.distanceBetween(start, y) / 1000 * 1.5
                 else:
                     bingMapsKey = "AmOtkPDIx-WA0ushTf-RENb0U_xe_7K6kBW7Xkl6JOpTG41mLY5rtUftM5H-QyUv"
                     bing = pybingmaps.Bing(bingMapsKey)
@@ -59,7 +59,7 @@ class OptimStations:
                     db.commit()
             except:
                 print "error"
-                distance = self.twoPointsDistance(start, y) / 1000 * 1.5
+                distance = self.distanceBetween(start, y) / 1000 * 1.5
 
             stat_dest[station[2]] = distance
         return sorted(stat_dest.items(), key=operator.itemgetter(1))
@@ -76,28 +76,38 @@ class OptimStations:
         distance += self.distanceBetween(x, y)
         return distance
 
-    def distanceBetween(self, x, y):
-        db = MySQLdb.connect("localhost", "root", "videogame2809", "hive")
+    def distanceBetween(self, x, y, transit="Driving", option="distance"):
+
+        x[0] = float(x[0])
+        y[0] = float(y[0])
+        x[1] = float(x[1])
+        y[1] = float(y[1])
+
+        if x == y:
+            return 0
+
+        db = pymysql.connect("localhost", "root", "", "hive")
         cursor = db.cursor()
-        request = "SELECT physical_distance FROM distance WHERE (latA='%f' AND latB='%f' AND lngA='%f' AND lngB='%f') OR (latA='%f' AND latB='%f' AND lngA='%f' AND lngB='%f')" % (
-            x[0], y[0], x[1], y[1], y[0], x[0], y[1], x[1])
+        request = "SELECT physical_distance, time_distance FROM distance WHERE (latA='%f' AND latB='%f' AND lngA='%f' AND lngB='%f') " \
+                  "OR (latA='%f' AND latB='%f' AND lngA='%f' AND lngB='%f') AND type='%s'" % ( x[0], y[0], x[1], y[1], y[0], x[0], y[1], x[1], transit)
         try:
             cursor.execute(request)
             data = cursor.fetchone()
             if data:
-                # print "db works"
-                return data[0]
-            elif self.twoPointsDistance(x, y) > 5000:
-                return self.twoPointsDistance(x, y)
+                if option=="distance":
+                    return data[0]*1e3
+                else:
+                    return data[1]
             else:
+                print "bingbing"
                 # Your Bing Maps Key
                 bingMapsKey = "AmOtkPDIx-WA0ushTf-RENb0U_xe_7K6kBW7Xkl6JOpTG41mLY5rtUftM5H-QyUv"
                 bing = pybingmaps.Bing(bingMapsKey)
-                data = bing.route(x.tolist(), y.tolist(), transite="Transit", timeType="Departure",
+                data = bing.route(x, y, transite=transit, timeType="Departure",
                                   dateTime="8:00:00AM")
                 distance = data['resourceSets'][0]['resources'][0]["routeLegs"][0]["routeSubLegs"][0]["travelDistance"]
                 time = data['resourceSets'][0]['resources'][0]["routeLegs"][0]["routeSubLegs"][0]["travelDuration"]
-                type = "Transit"
+                type = transit
                 now = datetime.datetime.now()
                 timestamp = (
                     datetime.datetime(now.year, now.month, now.day, 8) - datetime.datetime(1970, 1, 1)).total_seconds()
@@ -108,13 +118,18 @@ class OptimStations:
                 cursor.execute(query)
                 db.commit()
                 # print "map works"
-                return distance
+                db.close()
+                if option=="distance":
+                    return distance*1e3
+                else:
+                    return time
+
         except:
             # print "map crashes"
-            return self.twoPointsDistance(x, y)
+            return self.asTheCrowFlies(x, y)
 
     # Compute the distance between two points on the map
-    def twoPointsDistance(self, x, y):
+    def asTheCrowFlies(self, x, y):
         lat1 = float(x[0])
         lat2 = float(y[0])
         long1 = float(x[1])
@@ -136,7 +151,7 @@ class OptimStations:
     # returns the closest stations of a destination
     def getCloseStations(self, nb_station, perimeter, destination):
         request = "Select * FROM power_station"
-        db = MySQLdb.connect("localhost", "root", "videogame2809", "hive")
+        db = MySQLdb.connect("localhost", "root", "", "hive")
         cursor = db.cursor()
 
         # Hardcode a big number of station
@@ -151,7 +166,7 @@ class OptimStations:
             points = []
             c = 0
             for station in stations:
-                if self.twoPointsDistance(destination, ([station[2], station[3]])) < perimeter:
+                if self.distanceBetween(destination, ([station[2], station[3]])) < perimeter:
                     points.append((station[2], station[3], station[0]))
                     c += 1
             print "nbre de station: %d" % c
@@ -164,7 +179,7 @@ class OptimStations:
 
     # Draws an html google map of the point and its neigbours
     def printMapForPoint(self, point, nb_neighbors):
-        db = MySQLdb.connect("localhost", "root", "videogame2809", "hive")
+        db = pymysql.connect("localhost", "root", "", "hive")
         cursor = db.cursor()
         stations = self.nbrs.kneighbors(point, nb_neighbors)[1]
         stations.tolist
@@ -183,7 +198,7 @@ class OptimStations:
     # Registers the nb_stations the nearest from each destination in a certain perimeter
     def registerCloseStations(self, nb_stations=0, perimeter=0):
         request = "SELECT * FROM destinations"
-        db = MySQLdb.connect("localhost", "root", "videogame2809", "hive")
+        db = pymysql.connect("localhost", "root", "", "hive")
         cursor = db.cursor()
         try:
             cursor.execute(request)
@@ -209,7 +224,7 @@ class OptimStations:
     def computeWeight(self, id_vehicle, id_station):
         request_ev = "SELECT des_pos FROM destinations WHERE id_vehicle=%d" % id_vehicle
         request_st = "SELECT lat, lng FROM power_station WHERE id=%d" % id_station
-        db = MySQLdb.connect("localhost", "root", "videogame2809", "hive")
+        db = pymysql.connect("localhost", "root", "", "hive")
         cursor = db.cursor()
         try:
             cursor.execute(request_ev)
@@ -222,12 +237,12 @@ class OptimStations:
 
         except:
             print "problem"
-        return self.twoPointsDistance(des_pos, station_pos)
+        return self.distanceBetween(des_pos, station_pos)
 
     # Computes and registers in the DB the weight of each edge of the graph
     def registerGraph(self, nb_edge):
         request = "SELECT id_vehicle, closestations FROM destinations"
-        db = MySQLdb.connect("localhost", "root", "videogame2809", "hive")
+        db = pymysql.connect("localhost", "root", "", "hive")
         cursor = db.cursor()
         try:
             cursor.execute(request)
