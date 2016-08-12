@@ -1,10 +1,10 @@
-import MySQLdb
+import pymysql
 #from sklearn.neighbors import NearestNeighbors
 import gmplot
 import math
 import numpy
-from scipy.sparse import csr_matrix
-from scipy.sparse.csgraph import minimum_spanning_tree
+#from scipy.sparse import csr_matrix
+#from scipy.sparse.csgraph import minimum_spanning_tree
 import networkx as nx
 import matplotlib.pyplot as plt
 import gmplot
@@ -83,50 +83,60 @@ class OptimStations:
         x[1] = float(x[1])
         y[1] = float(y[1])
 
-        if x == y:
-            return 0
-
-        db = pymysql.connect("localhost", "root", "", "hive")
-        cursor = db.cursor()
-        request = "SELECT physical_distance, time_distance FROM distance WHERE (latA='%f' AND latB='%f' AND lngA='%f' AND lngB='%f') " \
-                  "OR (latA='%f' AND latB='%f' AND lngA='%f' AND lngB='%f') AND type='%s'" % ( x[0], y[0], x[1], y[1], y[0], x[0], y[1], x[1], transit)
-        try:
-            cursor.execute(request)
-            data = cursor.fetchone()
-            if data:
-                if option=="distance":
-                    return data[0]*1e3
-                else:
-                    return data[1]
-            else:
-                print "bingbing"
-                # Your Bing Maps Key
-                bingMapsKey = "AmOtkPDIx-WA0ushTf-RENb0U_xe_7K6kBW7Xkl6JOpTG41mLY5rtUftM5H-QyUv"
-                bing = pybingmaps.Bing(bingMapsKey)
-                data = bing.route(x, y, transite=transit, timeType="Departure",
-                                  dateTime="8:00:00AM")
-                distance = data['resourceSets'][0]['resources'][0]["routeLegs"][0]["routeSubLegs"][0]["travelDistance"]
-                time = data['resourceSets'][0]['resources'][0]["routeLegs"][0]["routeSubLegs"][0]["travelDuration"]
-                type = transit
-                now = datetime.datetime.now()
-                timestamp = (
-                    datetime.datetime(now.year, now.month, now.day, 8) - datetime.datetime(1970, 1, 1)).total_seconds()
-                timestamp = datetime.datetime.fromtimestamp(timestamp - 7200)
-                query = "INSERT INTO distance(latA, lngA, latB, lngB, type, time_distance, time_departure, physical_distance)" \
-                        + " VALUES (%f, %f, %f, %f, '%s', %d, '%s', %f)" % (
-                    x[0], x[1], y[0], y[1], type, time, timestamp, distance)
-                cursor.execute(query)
-                db.commit()
-                # print "map works"
+        distance = self.asTheCrowFlies(x, y)
+        #if distance < 1000:
+        if option=="distance":
+            return distance
+        else:
+            speed = 70000.0 # in m/hours
+            return float(distance)/speed
+        '''else:
+            print "data"
+            db = pymysql.connect("localhost", "root", "", "hive")
+            cursor = db.cursor()
+            request = "SELECT physical_distance, time_distance FROM distance WHERE (latA='%f' AND latB='%f' AND lngA='%f' AND lngB='%f') " \
+                      "OR (latA='%f' AND latB='%f' AND lngA='%f' AND lngB='%f') AND type='%s'" % ( x[0], y[0], x[1], y[1], y[0], x[0], y[1], x[1], transit)
+            try:
+                cursor.execute(request)
+                data = cursor.fetchone()
                 db.close()
-                if option=="distance":
-                    return distance*1e3
+                if data:
+                    if option=="distance":
+                        return data[0]*1e3
+                    else:
+                        return data[1]/3600
                 else:
-                    return time
+                    return distance
+                else:
+                    print "bingbing"
+                    # Your Bing Maps Key
+                    bingMapsKey = "AmOtkPDIx-WA0ushTf-RENb0U_xe_7K6kBW7Xkl6JOpTG41mLY5rtUftM5H-QyUv"
+                    bing = pybingmaps.Bing(bingMapsKey)
+                    data = bing.route(x, y, transite=transit, timeType="Departure",
+                                      dateTime="8:00:00AM")
+                    distance = data['resourceSets'][0]['resources'][0]["routeLegs"][0]["routeSubLegs"][0]["travelDistance"]
+                    time = data['resourceSets'][0]['resources'][0]["routeLegs"][0]["routeSubLegs"][0]["travelDuration"]
+                    type = transit
+                    now = datetime.datetime.now()
+                    timestamp = (
+                        datetime.datetime(now.year, now.month, now.day, 8) - datetime.datetime(1970, 1, 1)).total_seconds()
+                    timestamp = datetime.datetime.fromtimestamp(timestamp - 7200)
+                    query = "INSERT INTO distance(latA, lngA, latB, lngB, type, time_distance, time_departure, physical_distance)" \
+                            + " VALUES (%f, %f, %f, %f, '%s', %d, '%s', %f)" % (
+                        x[0], x[1], y[0], y[1], type, time, timestamp, distance)
+                    cursor.execute(query)
+                    db.commit()
+                    # print "map works"
+                    db.close()
+                    print "ok"
+                    if option=="distance":
+                        return distance*1e3
+                    else:
+                        return time
 
-        except:
-            # print "map crashes"
-            return self.asTheCrowFlies(x, y)
+            except:
+                print "map crashes"
+                return self.asTheCrowFlies(x, y)'''
 
     # Compute the distance between two points on the map
     def asTheCrowFlies(self, x, y):
@@ -151,7 +161,7 @@ class OptimStations:
     # returns the closest stations of a destination
     def getCloseStations(self, nb_station, perimeter, destination):
         request = "Select * FROM power_station"
-        db = MySQLdb.connect("localhost", "root", "videogame2809", "hive")
+        db = pymysql.connect("localhost", "root", "", "hive")
         cursor = db.cursor()
 
         # Hardcode a big number of station
@@ -179,7 +189,7 @@ class OptimStations:
 
     # Draws an html google map of the point and its neigbours
     def printMapForPoint(self, point, nb_neighbors):
-        db = MySQLdb.connect("localhost", "root", "videogame2809", "hive")
+        db = pymysql.connect("localhost", "root", "", "hive")
         cursor = db.cursor()
         stations = self.nbrs.kneighbors(point, nb_neighbors)[1]
         stations.tolist
@@ -198,7 +208,7 @@ class OptimStations:
     # Registers the nb_stations the nearest from each destination in a certain perimeter
     def registerCloseStations(self, nb_stations=0, perimeter=0):
         request = "SELECT * FROM destinations"
-        db = MySQLdb.connect("localhost", "root", "videogame2809", "hive")
+        db = pymysql.connect("localhost", "root", "", "hive")
         cursor = db.cursor()
         try:
             cursor.execute(request)
@@ -224,7 +234,7 @@ class OptimStations:
     def computeWeight(self, id_vehicle, id_station):
         request_ev = "SELECT des_pos FROM destinations WHERE id_vehicle=%d" % id_vehicle
         request_st = "SELECT lat, lng FROM power_station WHERE id=%d" % id_station
-        db = MySQLdb.connect("localhost", "root", "videogame2809", "hive")
+        db = pymysql.connect("localhost", "root", "", "hive")
         cursor = db.cursor()
         try:
             cursor.execute(request_ev)
@@ -242,7 +252,7 @@ class OptimStations:
     # Computes and registers in the DB the weight of each edge of the graph
     def registerGraph(self, nb_edge):
         request = "SELECT id_vehicle, closestations FROM destinations"
-        db = MySQLdb.connect("localhost", "root", "videogame2809", "hive")
+        db = pymysql.connect("localhost", "root", "", "hive")
         cursor = db.cursor()
         try:
             cursor.execute(request)
@@ -355,7 +365,7 @@ class OptimStations:
     # Displays in green the destinations that are deserved by a station and in red the other destinations
     def displayDispatching(self):
         request = "SELECT id_vehicle, des_pos, proposed_stations FROM destinations"
-        db = MySQLdb.connect("localhost", "root", "", "hive")
+        db = pymysql.connect("localhost", "root", "", "hive")
         cursor = db.cursor()
         mymap = gmplot.GoogleMapPlotter(50.8550624, 4.3053506, 8)
         try:

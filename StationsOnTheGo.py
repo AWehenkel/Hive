@@ -7,16 +7,26 @@ import random
 import statistics
 
 
+'''
+# This class contains functions used to determine the optimal traject for a vehicle
+# that goes from a depart to a destination at a certain time and with certain
+# characteristics (capacity, consumption, level of charge).
+'''
 class StationsOnTheGo:
 
-    #Determines the station that are situated on the way between two locations
-    #The smaller closeness is, the less station you will get
-    def onTheWay (self, x, y, des_time, closeness):
+    '''
+    #Determines the stations that are situated on the way between two locations
+    #PARAMETERS
+    # x , [lat, long] of point x
+    # y , [lat, long] of point y
+    # dep_time, departure time
+    # des_time, arrival time
+    # closeness, the smaller this paramater, the closer to the path the stations will
+    #            be selected
+    '''
+    def onTheWay (self, x, y, dep_time, des_time, closeness):
 
-        x[0] = float(x[0])
-        y[0] = float(y[0])
-        x[1] = float(x[1])
-        y[1] = float(y[1])
+        x[0] = float(x[0]);y[0] = float(y[0]);  x[1] = float(x[1]); y[1] = float(y[1])
 
         station = []
         try:
@@ -34,24 +44,21 @@ class StationsOnTheGo:
         mymap.marker(float(x[0]), float(x[1]),title="PointA", c="#00FF00")
         mymap.marker(float(y[0]), float(y[1]),title="PointB", c="#00FF00")
 
-        #Generate two points on the mediatrice and compute their distance to the original points
+        # Compute the distance between the two points and determine the center
         op = OptimStations()
+        distance = op.asTheCrowFlies(x, y)
+        center = [(x[0]+y[0])/2, (x[1]+y[1])/2]
+        mymap.marker(float(center[0]), float(center[1]),title="Center", c="#00FF00")
+
+        #Generate two points on the mediatrice and compute their distance to the original points
         med_points = self.generatePointsAtSameDistance(x, y, closeness)
         med_distances = [0 for z in range(2)]
         med_distances[0] = op.asTheCrowFlies(x, med_points[0])
         med_distances[1] = op.asTheCrowFlies(x, med_points[1])
 
-        # Compute the distance between the two points and the data for the third circle
-        distance = op.asTheCrowFlies(x, y)
-        center = [(x[0]+y[0])/2, (x[1]+y[1])/2]
-        mymap.marker(float(center[0]), float(center[1]),title="Center", c="#00FF00")
-
-        #Compute the time to reach the destination
-        time_to_reach = op.distanceBetween(x, y, "Driving", option="time")
-        time_to_reach = 0
-        dep_time = des_time - time_to_reach
-
-        #Select the stations that are in the two circles
+        #Select the stations that are situated in the cirle centered at the center and passing through
+        # the points x and y and that are also in the circles centered at the two mediatrice points.
+        #In addition, remove the stations that have no time slots available in the traject time.
         selected_stations = []
         for station in stations:
             dist_to_center = op.asTheCrowFlies(center, [station[2], station[3]])
@@ -82,27 +89,27 @@ class StationsOnTheGo:
                     mymap.marker(float(station[2]), float(station[3]), title=title, text=text, c="#FF0000")
 
         mymap.draw("./mymap.html", 'AIzaSyD0QmwrWQGk3YPqvYv7-iUxdqqK7Zh0MO4')
-
         return selected_stations
 
+    '''
     #Generate two points that are situated on the mediatrice of two given points
+    #PARAMETERS
+    # x, [lat, long]
+    # y, [lat, long]
+    # closeness, the smaller this parameter the further away the two points from the center
+    '''
     def generatePointsAtSameDistance(self, x, y, closeness):
 
         x[0] = float(x[0]); x[1] = float(x[1]); y[0] = float(y[0]); y[1] = float(y[1])
 
-        mymap = gmplot.GoogleMapPlotter(x[0], x[1], 8)
         op = OptimStations()
         distance = op.asTheCrowFlies(x, y)
-        mymap.marker(float(x[0]), float(x[1]),title="Center", c="#00FF00")
-        mymap.marker(float(y[0]), float(y[1]),title="Center", c="#00FF00")
-
         center = [(x[0]+y[0])/2, (x[1]+y[1])/2]
-        mymap.marker(float(center[0]), float(center[1]),title="Center", c="#00FF00")
 
+        #Generate random points around the center and keep only the points that are situated
+        #  at the same distance of x and y
         t = Towns(0.1)
         points = t.genRandomLocation(center[0], center[1], distance/closeness, int(distance/100))
-
-        #Keep only the points that are situated at the same distance of the two original points
         tresh = 1000
         ok_points = []
         for point in points:
@@ -120,23 +127,32 @@ class StationsOnTheGo:
             if dist > max:
                 max = dist
                 chosen_point1 = [float(point[0]), float(point[1])]
-        mymap.marker(float(chosen_point1[0]), float(chosen_point1[1]), title="Point", c="#000000")
         chosen_point2 = [center[0]-(float(chosen_point1[0])-center[0]), center[1]-(float(chosen_point1[1])-center[1])]
-        mymap.marker(float(chosen_point2[0]), float(chosen_point2[1]), title="Point", c="#000000")
 
-        #mymap.draw("./mymap.html", 'AIzaSyD0QmwrWQGk3YPqvYv7-iUxdqqK7Zh0MO4')
+        '''
+        mymap = gmplot.GoogleMapPlotter(x[0], x[1], 8)
+        mymap.marker(float(x[0]), float(x[1]),title="Center", c="#00FF00")
+        mymap.marker(float(y[0]), float(y[1]),title="Center", c="#00FF00")
+        mymap.marker(float(center[0]), float(center[1]),title="Center", c="#00FF00")
+        mymap.marker(float(chosen_point1[0]), float(chosen_point1[1]), title="Point", c="#000000")
+        mymap.marker(float(chosen_point2[0]), float(chosen_point2[1]), title="Point", c="#000000")
+        mymap.draw("./mymap.html", 'AIzaSyD0QmwrWQGk3YPqvYv7-iUxdqqK7Zh0MO4')
+        '''
 
         return  [chosen_point1, chosen_point2]
 
+    '''
     #This function gives how long you need to charge to reach a destination at a certain distance,
     # knowing your level of charge, your consumption and the power delivered by the charger your are at
-    # distance in meter
-    # charge in %
-    # capacity in kWh
-    # csmpt in kWh/100km
-    # power in kW
+    #PARAMETERS
+    # dist, distance in meter
+    # charge, charge level in %
+    # capacity, capacity in kWh
+    # csmpt, consumption in kWh/100km
+    # power, power in kW
+    '''
     def chargingTime(self, dist, charge, capacity, csmpt, power):
-        #Compute the energy that is necessary to travel the distance + 10% (in kWh)
+        #Compute the energy that is necessary to travel the distance (in kWh)
         energy = (csmpt/1e5)*dist
 
         #Compute the time needed to charge (in hours)
@@ -145,29 +161,75 @@ class StationsOnTheGo:
         elif power > 40:
             power = 40
 
+        #If you already have enough energy, you don't wait at this station
         if energy < (charge*capacity)/100:
             time = 0
         else:
             time = energy/power
-
         return time
 
+    '''
+    #This function gives the time needed to travel from one position to another by car
+    #PARAMETERS
+    # x, [lat, long]
+    # y, [lat, long]
+    '''
     def travelTime(self, x, y):
-        speed = 80000 #in m/hours
         op = OptimStations()
-        distance = op.distanceBetween(x, y)
-        time = distance/speed #in hours
-
+        time = op.distanceBetween(x, y, option="time")
         return time
 
+    '''
+    #This function reserveres the appropriate time slots for a vehicle that leaves at a certain
+    # time and that needs to stop at given stations at given times.
+    #/!\ The stations should at least have one empty spot left at the time the vehicle reaches it
+    # or the reservation will not be done
+    #PARAMETERS
+    # dep_time, departure time in hours
+    # stations_n_time, list of [station_id, time] where time is the time to reach the station from
+    #                  the departure
+    '''
+    def reserveSlots(self, dep_time, stations_n_time, id_vehicle):
+        next_station_pos = []
+        for station in stations_n_time:
+            #Round the arrival time to get a full slot
+            stat_arrival_time = int(round(dep_time + station[1]))
+            if stat_arrival_time < 8:
+                stat_arrival_time = 8
+
+            try:
+                db = pymysql.connect("localhost", "root", "", "hive")
+                cursor = db.cursor()
+                request = "UPDATE power_slot SET id_vehicle=%d WHERE id_station=%d AND id_vehicle=%d AND begin_time=%d" % (
+                           id_vehicle,  station[0], -1, stat_arrival_time)
+                cursor.execute(request)
+                db.commit()
+                db.close()
+            except:
+                print "Unable to update data"
+
+
+    '''
     #This function gives the id of the stations someone with low carburant (or making a long trip) has
     # to go through to get to his destination in a minimum amount of time
-    def fastestPath(self, dep_pos, des_pos, ev_csmpt, ev_capacity, ev_charge, des_time, closeness):
+    #PARAMETERS
+    # dep_pos, [lat, long] of the departure
+    # des_pos, [lat, long] of the destination
+    # ev_id, electric vehicle identifier
+    # ev_csmpt, consumption in kWh/100km
+    # ev_capacity, capacity in kWh
+    # ev_charge, charge level in %
+    # des_time, time of arrival at the destination in hours
+    # closeness, the smaller this parameter the less stations will be considered
+    '''
+    def fastestPath(self, dep_pos, des_pos, ev_id, ev_csmpt, ev_capacity, ev_charge, des_time, closeness):
 
-        max_distance = (float(ev_capacity)/ev_csmpt)*1e5
         #First we select the station that are along the path
-        stations = self.onTheWay(dep_pos, des_pos, des_time, closeness)
+        #Compute the time to reach the destination
         op = OptimStations()
+        time_to_reach = op.distanceBetween(dep_pos, des_pos, "Driving", option="time")
+        dep_time = des_time - time_to_reach
+        stations = self.onTheWay(dep_pos, des_pos, dep_time, des_time, closeness)
 
         #Add all the vertexes to the graph
         g = Graph()
@@ -178,6 +240,7 @@ class StationsOnTheGo:
 
         #Add all the links and their weight
         dist_dep_des = op.distanceBetween(dep_pos, des_pos)
+        max_distance = (float(ev_capacity)/ev_csmpt)*1e5
         if dist_dep_des < max_distance:
             weight = self.travelTime(dep_pos, des_pos) + self.chargingTime(dist_dep_des, ev_charge, ev_capacity, ev_csmpt, 3)
             g.add_edge('dep', 'des', weight)
@@ -190,6 +253,7 @@ class StationsOnTheGo:
                 weight = self.travelTime(dep_pos, [station[2],station[3]]) + self.chargingTime(dist_dep, ev_charge, ev_capacity, ev_csmpt, 3)
                 g.add_edge('dep', str(station[0]), weight)
 
+            #Link the departure to all accesible stations
             dist_des =  op.distanceBetween(des_pos, [station[2], station[3]])
             if dist_des < max_distance:
                 # Compute the weight (in hours)
@@ -213,32 +277,42 @@ class StationsOnTheGo:
         shortest(target, path)
 
         #Get the stations through which you have to pass
-        stations = []
+        stations_n_time = []
         for i in range(1, len(path)-1):
-            stations.insert(0, int(path[i]))
+            w = g.get_vertex(path[i])
+            time = w.get_distance()
+            stations_n_time.insert(0, [int(path[i]), time])
 
-        #print "You have to pass through station " + str(stations)
+        #Reserve the slots if you need a station
+        if stations_n_time:
+            #Recompute the real departure time
+            w = g.get_vertex('des')
+            dep_time = des_time - w.get_distance()
+            self.reserveSlots(dep_time, stations_n_time, ev_id)
 
         #Compute different times
         # 1) Without stop
         straight_time = self.travelTime(dep_pos, des_pos)
-        print "Time without stop is: " + str(straight_time) + " hours"
+        #print "Time without stop is: " + str(straight_time) + " hours"
 
         # 2) Time with the different stops
         w = g.get_vertex('des')
-        print "Time with the stops is: " + str(w.get_distance()) + " hours"
+        #print "Time with the stops is: " + str(w.get_distance()) + " hours"
 
         lost_time = w.get_distance() - straight_time
-        return [stations, lost_time]
-
+        return [stations_n_time, lost_time]
 
     def dateTimeToTime (self, dateTime):
         time = str(dateTime.time()).split(':', 2)
         time = float(time[0]) + float(time[1])/60 + float(time[2])/3600
         return time
 
-
-
+    '''
+    #This function computes and displays the different stations that a series of vehicles has
+    # to pass through to go from their departure to their destination.
+    #PARAMETERS
+    # nb_vehicles, the nb of vehicles to simulate
+    '''
     def displayFastestPath(self, nb_vehicles, closeness):
 
         lost_times = []
@@ -273,15 +347,16 @@ class StationsOnTheGo:
             dep_pos = destinations[id][2].split(',')
             des_pos = destinations[id][3].split(',')
             des_time = self.dateTimeToTime(destinations[id][1])
-            result = self.fastestPath(dep_pos, des_pos, vehicles[id][2], vehicles[id][1], charge,
-                                        des_time, closeness)
-            stations_path = result[0]
+            result = self.fastestPath(dep_pos, des_pos, id, vehicles[id][2], vehicles[id][1], charge,
+                                      des_time, closeness)
+
+            stations_path_n_time = result[0]
             lost_times.append(result[1])
 
             #Fetch the info about the stations
             stations_path_info = []
-            for i in stations_path:
-                stations_path_info.append(stations_info[int(i)-1])
+            for station_n_time in stations_path_n_time:
+                stations_path_info.append(stations_info[int(station_n_time[0])-1])
 
             #Display info on a map
             if  len(stations_path_info) == 0:
@@ -355,8 +430,7 @@ class StationsOnTheGo:
 
         mymap.draw('./mymap.html', 'AIzaSyBj7JAQHEc-eFQkfuCXBba0dItAUPL0fMI')
 
-
 sotg = StationsOnTheGo()
 #sol = sotg.fastestPath([50.9058436133, 4.55486282443], [51.2472636991, 3.03663216625], 18, 60, 50, 2)
 #sotg.fastestPath([50.9058436133, 4.55486282443], [51.2472636991, 3.03663216625], 18, 10, 50, 0.5)
-sotg.displayFastestPath(1, 2)
+sotg.displayFastestPath(10, 0.5)
