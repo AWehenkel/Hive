@@ -25,23 +25,22 @@ class PowerSlotManager:
     def bookSlot(self, id_station, begin_time, nb_slot, id_car):
         db = MySQLdb.connect("localhost", "root", "videogame2809", "hive")
         cursor = db.cursor()
-        for slot in range(0, nb_slot):
-            key = "%d-%d" % (id_station, begin_time + slot)
-            if(self.isFree(id_station, begin_time + slot)):
+        for slot in range(begin_time, begin_time + nb_slot):
+            key = "%d-%d" % (id_station, slot)
+            if(self.isFree(id_station, slot)):
                 self.power_slot[key] -= 1
-                print self.power_slot[key]
                 request = "SELECT min(id) FROM power_slot WHERE id_station=%d AND begin_time=%d" % (
-                    id_station, begin_time + slot)
-                print request
+                    id_station, slot)
                 cursor.execute(request)
                 id_slot = cursor.fetchone()
                 request = "UPDATE power_slot SET id_vehicle=%d WHERE id=%d" % (id_car, id_slot[0])
-                print request
                 cursor.execute(request)
         db.commit()
 
     def resetBooking(self):
-        print "todo"
+        db = MySQLdb.connect("localhost", "root", "videogame2809", "hive")
+        cursor = db.cursor()
+        request = "UPDATE power_slot SET id_vehicle=-1"
+        cursor.execute(request)
+        db.commit()
 
-t = PowerSlotManager()
-print t.isFree(1, 8, 12)

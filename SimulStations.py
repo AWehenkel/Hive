@@ -47,7 +47,7 @@ class SimulStations:
                 vehicle = destination[3].split(', ')
                 lat1 = float(vehicle[0])
                 lng1 = float(vehicle[1])
-                optimiser = OptimStations.OptimStations()
+                optimiser = OptimStations.OptimStations(self.power_slot_manager)
                 distance = optimiser.distanceBetween((lat1, lng1), (lat2, lng2))
                 if(distance > 30000):
                     print distance
@@ -102,7 +102,6 @@ class SimulStations:
             request = "SELECT * FROM destinations WHERE enough_fuel AND id_vehicle NOT IN (%s) ORDER BY RAND() LIMIT %d" % (str(self.user_registered)[1:-1], nb_user)
         else:
             request = "SELECT * FROM destinations WHERE enough_fuel ORDER BY RAND() LIMIT %d" % (nb_user)
-        print request
 
         try:
             cursor.execute(request)
@@ -116,10 +115,12 @@ class SimulStations:
     def calculateDetour(self):
         db = MySQLdb.connect("localhost", "root", "videogame2809", "hive")
         cursor = db.cursor()
-        request = "SELECT id_station, id_vehicle FROM reservation"
+        request = "SELECT id_station, id_vehicle, power, COUNT(begin_time) AS nb_slot FROM power_slot WHERE id_vehicle > 0 GROUP BY id_vehicle, id_station"
         cursor.execute(request)
         datas = cursor.fetchall()
         distance_totale = []
+        energy_recharged = []
+        percentage_recharged = []
         i = 0
         for data in datas:
             id_station = data[0]
@@ -133,12 +134,19 @@ class SimulStations:
             vehicle = da[0].split(', ')
             lat2 = float(vehicle[0])
             lng2 = float(vehicle[1])
-            optimiser = OptimStations.OptimStations()
-            distance = optimiser.distanceBetween(station, (lat2, lng2))
+            optimiser = OptimStations.OptimStations(self.power_slot_manager)
+            distance = optimiser.distanceBetween(list((station[0], station[1])), list((lat2, lng2)))
             distance_totale.append(distance)
+            request = "SELECT capacity, charge FROM vehicles WHERE id = %d" % id_vehicle
+            cursor.execute(request)
+            da = cursor.fetchone()
+            energy_max = float(100-da[1])/100.0 * float(da[0])
+            energy_charged = data[3] * data[2]
+            energy_recharged.append(min(energy_charged, energy_max))
+            percentage_recharged.append(float(min(energy_charged, energy_recharged))/float(energy_max))
             i += 1
 
-        return distance_totale
+        return (distance_totale, energy_recharged, percentage_recharged)
 
 
     #IN: vehicles: A list of vehicles as represented in the database
@@ -148,7 +156,7 @@ class SimulStations:
         db = MySQLdb.connect("localhost", "root", "videogame2809", "hive")
         cursor = db.cursor()
 
-        optimiser = OptimStations.OptimStations()
+        optimiser = OptimStations.OptimStations(self.power_slot_manager)
         min_power = 15 #In the futur let the user choose the minimal power and the sorting criteria
 
         print len(vehicles)
@@ -159,11 +167,9 @@ class SimulStations:
         for vehicle in vehicles:
             problem[vehicle[0]] = vehicle[4]
             id += 1
-            print id
             close_stations = json.loads(vehicle[4])
             min_power = float(vehicle[7])/float(vehicle[8])
             stations = optimiser.sortAndFilterStations(close_stations, min_power, vehicle[1], vehicle[8])
-            print id
             for station in stations:
                 weight = 1000
                 for close in close_stations:
@@ -186,7 +192,6 @@ class SimulStations:
         id = 0
         for vehicle in st:
             id += 1
-            print id
             if vehicle and random.random() < percentage_booking:
                 #data about vehicle
                 request = "SELECT duration, des_time FROM destinations WHERE id_vehicle=%d" % id
@@ -201,13 +206,7 @@ class SimulStations:
 
                 for station_proposed in vehicle:
                     if self.isFreeStation(station_proposed[0], car[1], car[0]):
-                        for slot in range(0, car[0]):
-                            request = "SELECT min(id) FROM power_slot WHERE id_station=%d AND begin_time=%d" % (station_proposed[0], hour_begin + slot)
-                            cursor.execute(request)
-                            id_slot = cursor.fetchone()
-                            request = "UPDATE power_slot SET id_vehicle=%d WHERE id=%d" % (id, id_slot[0])
-                            cursor.execute(request)
-                        db.commit()
+                        self.power_slot_manager.bookSlot(station_proposed[0], hour_begin, car[0], id)
                         problem.__delitem__(id)
                         break
         # Reserve a station not chosen by the spanning tree
@@ -225,14 +224,7 @@ class SimulStations:
                     stations = close_stations
                     for station_proposed in stations:
                         if self.isFreeStation(station_proposed[0], car[1], car[0]):
-                            for slot in range(0, car[0]):
-                                request = "SELECT min(id) FROM power_slot WHERE id_station=%d AND begin_time=%d" % (
-                                station_proposed[0], hour_begin + slot)
-                                cursor.execute(request)
-                                id_slot = cursor.fetchone()
-                                request = "UPDATE power_slot SET id_vehicle=%d WHERE id=%d" % (key, id_slot[0])
-                                cursor.execute(request)
-                            db.commit()
+                            self.power_slot_manager.bookSlot(station_proposed[0], hour_begin, car[0], key)
                             problem.__delitem__(key)
                             break
                     break
@@ -251,12 +243,17 @@ class SimulStations:
         detours = self.calculateDetour()
         square_sum = 0.0
         sums = 0.0
-        for i in detours:
+        percentage_power = 0.0
+
+        for i in detours[0]:
             square_sum += i**2.0
             sums += i
+        for i in detours[2]:
+            percentage_power += i/len(detours[2])
         mean = sums/len(detours)
         square_mean = square_sum/len(detours)
-        variance = square_mean - mean**2.0
+        #variance = square_mean - mean**2.0
+        variance = 0
         ecart_type = variance**(0.5)
         print "resultats pour des packet de %d voitures et nombre de station de %d" % (size, self.nb_stations)
         print "detour total: %f" % sums
@@ -264,11 +261,10 @@ class SimulStations:
         print "nbre de voiture total: %d" % self.nb_cars
         print "detour moyen: %f" % mean
         print "variance: %f, E-T: %f" % (variance, ecart_type)
+        print "percentage moyen recharge: %f" % percentage_power
 
 
     def isFreeStation(self, id_station, time_slot, nb_slot):
-        db = MySQLdb.connect("localhost", "root", "videogame2809", "hive")
-        cursor = db.cursor()
         begin_time = datetime.datetime.strptime(str(time_slot), "%Y-%m-%d %H:%M:%S")
         hour_begin = begin_time.hour
         return self.power_slot_manager.isFree(id_station, hour_begin, nb_slot)
@@ -277,4 +273,6 @@ class SimulStations:
 
 t = SimulStations()
 #t.updateFuel()
-t.computeStats(50)
+t2 = PowerSlotManager.PowerSlotManager()
+t2.resetBooking()
+t.computeStats(3800)
