@@ -430,6 +430,7 @@ class StationsOnTheGo:
 
         mymap.draw('./mymap.html', 'AIzaSyBj7JAQHEc-eFQkfuCXBba0dItAUPL0fMI')
 
+
 sotg = StationsOnTheGo()
 #sol = sotg.fastestPath([50.9058436133, 4.55486282443], [51.2472636991, 3.03663216625], 18, 60, 50, 2)
 #sotg.fastestPath([50.9058436133, 4.55486282443], [51.2472636991, 3.03663216625], 18, 10, 50, 0.5)
