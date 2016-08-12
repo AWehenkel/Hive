@@ -1,23 +1,4 @@
 
-# inserts into the db a new station
-def insertStation(db, type, lat, lng, power):
-
-    # prepare a cursor object using cursor() method
-    cursor = db.cursor()
-    # Prepare SQL query to INSERT a record into the database.
-    sql = "INSERT INTO POWER_STATION(type, lat, lng, power) VALUES ('%d', '%f', '%f', '%f')" % ( \
-        type, lat, lng, power)
-
-    try:
-        # Execute the SQL command
-        cursor.execute(sql)
-        # Commit your changes in the database
-        db.commit()
-    except:
-        # Rollback in case there is any error
-        db.rollback()
-
-
 """
 
 # Connect to google map API
