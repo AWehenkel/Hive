@@ -102,9 +102,8 @@ class OptimStations:
                 else:
                     return data[1]
             else:
-                print "bingbing"
                 # Your Bing Maps Key
-                bingMapsKey = "AmOtkPDIx-WA0ushTf-RENb0U_xe_7K6kBW7Xkl6JOpTG41mLY5rtUftM5H-QyUv"
+                bingMapsKey = "AjePVj8SDhApGXWARrfuwSbjdOI613lKBGlzY6pfgjyWULtEiLg24taAzM1HajCg"
                 bing = pybingmaps.Bing(bingMapsKey)
                 data = bing.route(x, y, transite=transit, timeType="Departure",
                                   dateTime="8:00:00AM")
