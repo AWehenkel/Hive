@@ -1,10 +1,10 @@
-import MySQLdb
+import pymysql
 #from sklearn.neighbors import NearestNeighbors
 import gmplot
 import math
 import numpy
-from scipy.sparse import csr_matrix
-from scipy.sparse.csgraph import minimum_spanning_tree
+#from scipy.sparse import csr_matrix
+#from scipy.sparse.csgraph import minimum_spanning_tree
 import networkx as nx
 import matplotlib.pyplot as plt
 import gmplot
@@ -89,7 +89,13 @@ class OptimStations:
         if x == y:
             return 0
 
-        db = MySQLdb.connect("localhost", "root", "videogame2809", "hive")
+        if option=="distance" :
+            return self.asTheCrowFlies(x, y)
+        else:
+            speed = 90000
+            return self.asTheCrowFlies(x, y)/speed
+        '''
+        db = pymysql.connect("localhost", "root", "", "hive")
         cursor = db.cursor()
         request = "SELECT physical_distance, time_distance FROM distance WHERE (latA='%f' AND latB='%f' AND lngA='%f' AND lngB='%f') " \
                   "OR (latA='%f' AND latB='%f' AND lngA='%f' AND lngB='%f') AND type='%s'" % ( x[0], y[0], x[1], y[1], y[0], x[0], y[1], x[1], transit)
@@ -129,6 +135,7 @@ class OptimStations:
         except:
             # print "map crashes"
             return self.asTheCrowFlies(x, y)
+        '''
 
     # Compute the distance between two points on the map
     def asTheCrowFlies(self, x, y):

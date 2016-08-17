@@ -45,7 +45,8 @@ class StationsOnTheGo:
         mymap.marker(float(y[0]), float(y[1]),title="PointB", c="#00FF00")
 
         # Compute the distance between the two points and determine the center
-        op = OptimStations()
+        power_slot_manager = []
+        op = OptimStations(power_slot_manager)
         distance = op.asTheCrowFlies(x, y)
         center = [(x[0]+y[0])/2, (x[1]+y[1])/2]
         mymap.marker(float(center[0]), float(center[1]),title="Center", c="#00FF00")
@@ -102,7 +103,8 @@ class StationsOnTheGo:
 
         x[0] = float(x[0]); x[1] = float(x[1]); y[0] = float(y[0]); y[1] = float(y[1])
 
-        op = OptimStations()
+        power_slot_manager = []
+        op = OptimStations(power_slot_manager)
         distance = op.asTheCrowFlies(x, y)
         center = [(x[0]+y[0])/2, (x[1]+y[1])/2]
 
@@ -156,9 +158,10 @@ class StationsOnTheGo:
         energy = (csmpt/1e5)*dist
 
         #Compute the time needed to charge (in hours)
-        if power > 200:
-            power = 160
-        elif power > 40:
+        power = float(power)/4.0
+        #if power > 160:
+        #  power = 160
+        if power > 40:
             power = 40
 
         #If you already have enough energy, you don't wait at this station
@@ -175,7 +178,8 @@ class StationsOnTheGo:
     # y, [lat, long]
     '''
     def travelTime(self, x, y):
-        op = OptimStations()
+        power_slot_manager = []
+        op = OptimStations(power_slot_manager)
         time = op.distanceBetween(x, y, option="time")
         return time
 
@@ -226,7 +230,8 @@ class StationsOnTheGo:
 
         #First we select the station that are along the path
         #Compute the time to reach the destination
-        op = OptimStations()
+        power_slot_manager = []
+        op = OptimStations(power_slot_manager)
         time_to_reach = op.distanceBetween(dep_pos, des_pos, "Driving", option="time")
         dep_time = des_time - time_to_reach
         stations = self.onTheWay(dep_pos, des_pos, dep_time, des_time, closeness)
@@ -300,7 +305,7 @@ class StationsOnTheGo:
         #print "Time with the stops is: " + str(w.get_distance()) + " hours"
 
         lost_time = w.get_distance() - straight_time
-        return [stations_n_time, lost_time]
+        return [stations_n_time, lost_time, straight_time]
 
     def dateTimeToTime (self, dateTime):
         time = str(dateTime.time()).split(':', 2)
@@ -316,6 +321,7 @@ class StationsOnTheGo:
     def displayFastestPath(self, nb_vehicles, closeness):
 
         lost_times = []
+        straight_times = []
         stations_info = []
         vehicles = []
         destinations = []
@@ -336,8 +342,10 @@ class StationsOnTheGo:
         except:
             print "Unable to fetch data"
 
-        op = OptimStations()
+        power_slot_manager = []
+        op = OptimStations(power_slot_manager)
         mymap = gmplot.GoogleMapPlotter(50.8550624, 4.3053506, 8)
+        print len(vehicles)
         random_ev = [random.randrange(1, len(vehicles)) for _ in range(nb_vehicles)]
         for id in random_ev:
 
@@ -352,6 +360,7 @@ class StationsOnTheGo:
 
             stations_path_n_time = result[0]
             lost_times.append(result[1])
+            straight_times.append(result[2])
 
             #Fetch the info about the stations
             stations_path_info = []
@@ -416,13 +425,19 @@ class StationsOnTheGo:
 
         #Print statistics for deviated vehicles
         dev_lost_times = []
+        dev_straight_times = []
+        cur = 0
         for i in lost_times:
             if i != float(0):
                 dev_lost_times.append(i)
+                dev_straight_times.append(straight_times[cur])
+            cur += 1
 
         if len(dev_lost_times) != 0:
             dev_average = sum(dev_lost_times)/len(dev_lost_times)
-            print "The average lost time is " + str(dev_average) + " hours for " + str(len(dev_lost_times)) + " deviated vehicles."
+            straight_avg = sum(dev_straight_times)/len(dev_straight_times)
+            print "The average lost time is " + str(dev_average) + " hours for " + str(len(dev_lost_times)) + \
+            " deviated vehicles for travels that are normally " + str(straight_avg) + " hours long."
 
             if len(dev_lost_times) != 1:
                 dev_variance = statistics.variance(dev_lost_times)
@@ -434,4 +449,4 @@ class StationsOnTheGo:
 sotg = StationsOnTheGo()
 #sol = sotg.fastestPath([50.9058436133, 4.55486282443], [51.2472636991, 3.03663216625], 18, 60, 50, 2)
 #sotg.fastestPath([50.9058436133, 4.55486282443], [51.2472636991, 3.03663216625], 18, 10, 50, 0.5)
-sotg.displayFastestPath(10, 0.5)
+sotg.displayFastestPath(500, 0.5)
