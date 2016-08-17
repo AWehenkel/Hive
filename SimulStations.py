@@ -110,6 +110,7 @@ class SimulStations:
             print "error in adduser"
             return -1
         if(type_algo == "s-tree"):
+            print 'ok'
             return self.__optAndBook(vehicles, 1, tri)
         else:
             return self.bookRandomly(vehicles)
@@ -243,13 +244,9 @@ class SimulStations:
             stations.sort(key=lambda tup: abs(tup[2][0] - power))
 
     def computeStats(self, type_algo = "s-tree"):
-        simulations = ["random", "distance", "power"]
-        type_weight = ""
+        simulations = ["distance", "power"]
         for sim in simulations:
-            if(sim == "random"):
-                type_algo = "random"
-            else:
-                type_weight = sim
+            type_weight = sim
             for size in [500, 1000, 3800]:
                 nb_voiture_list = [0]
                 mean_distance_list = [0]
@@ -328,7 +325,6 @@ class SimulStations:
         counter = 0
         c = 0
         for vehicle in vehicles:
-            print c
             c += 1
             request = "SELECT closestations, duration, des_time FROM destinations WHERE id_vehicle=%d" % vehicle[0]
             cursor.execute(request)
