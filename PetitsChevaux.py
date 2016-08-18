@@ -112,6 +112,7 @@ def petitsChevauxAlg(petits_chevaux_list, max_nb_iter):
             iter += 1
             #print iter
 
+
     return [solu, weight, sol_with_collisions, minimum_coll_nb]
 
 
