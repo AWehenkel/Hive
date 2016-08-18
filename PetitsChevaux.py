@@ -152,6 +152,7 @@ def petitsChevauxAlg(petits_chevaux_list, max_nb_iter):
     return [solu, w, minimum_coll_nb, sol_with_collisions]
 
 
+
 print petitsChevauxAlg(petitsChevauxList(200, 5, 400), 1e4)
 
 #print isAcceptable([1, 5, 8, 4, 7, 5, 7, 9])
